@@ -16,6 +16,10 @@ data/
 logs/
 models/*.pt
 
+# Yerelde tutulan, depoya girmeyen planlama dokumanlari
+finance.md
+ROADMAP.md
+
 .idea/
 .vscode/
 .DS_Store
