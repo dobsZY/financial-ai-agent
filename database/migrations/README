@@ -1,0 +1,5 @@
+Alembic async migration ortami.
+
+Yeni revizyon:  alembic revision --autogenerate -m "aciklama"
+Uygula:         alembic upgrade head
+Geri al:        alembic downgrade -1

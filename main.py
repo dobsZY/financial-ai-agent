@@ -10,6 +10,7 @@ from api.routes import health
 from config.settings import get_settings
 from core.logger import get_logger, setup_logging
 from core.scheduler import shutdown_scheduler, start_scheduler
+from database.db_manager import dispose_engine
 
 setup_logging()
 logger = get_logger(__name__)
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         shutdown_scheduler()
+        await dispose_engine()
         logger.info("app.shutdown")
 
 

@@ -23,6 +23,12 @@ Copy-Item .env.example .env
 `.env` içindeki `GEMINI_API_KEY`, `PUSHOVER_TOKEN`, `PUSHOVER_USER` alanlarını doldurun.
 Bu anahtarlar asla koda veya git'e yazılmaz.
 
+## Veritabanı
+
+```powershell
+alembic upgrade head
+```
+
 ## Çalıştırma
 
 ```powershell
@@ -40,5 +46,7 @@ pytest
 
 ## Mevcut Durum
 
-Faz 0 (iskelet, konfigürasyon, loglama, scheduler lifespan, `/health`) tamamlandı.
-Sıradaki adımlar için `ROADMAP.md` içindeki görev listesine bakın.
+- **Faz 0** — iskelet, konfigürasyon, loglama, scheduler lifespan, `/health` ✅
+- **Faz 1** — veri akış hattı: async `yfinance` çekimi, RAM-içi grafik üretimi (`BytesIO` → `ndarray`),
+  RSI/EMA/MACD indikatörleri, SQLite + Alembic şeması ve idempotent mum yazımı ✅
+- **Sıradaki:** Faz 2 — YOLO görsel analiz + Gemini metin analiz modülleri
