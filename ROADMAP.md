@@ -3,6 +3,7 @@
 > Bu doküman hem insan geliştirici hem de yapay zeka agent'ı için **tek doğruluk kaynağıdır (single source of truth)**.
 > Her görev tamamlandığında ilgili kutucuk `[x]` yapılır ve "Durum Günlüğü" bölümüne satır eklenir.
 > Kaynak spesifikasyon: `finance.md`
+> Depo: https://github.com/dobsZY/financial-ai-agent (`main` dalı)
 
 ---
 
@@ -24,6 +25,7 @@ MVP kapsamında kilitlenen teknik kararlar. Değişiklik gerekirse bu tablo gün
 | ADR-10 | UI | Flet (masaüstü + web aynı kod) | Tek dilde (Python) tam yığın | Next.js + Tailwind |
 | ADR-11 | Konfigürasyon | Pydantic Settings + `.env` | Tip güvenli, sırlar kodda değil | — |
 | ADR-12 | Paket yönetimi | `venv` + `requirements.txt` (+ `requirements-dev.txt`) | Düşük sürtünme | Poetry / uv |
+| ADR-13 | Versiyon kontrolü | GitHub public repo `dobsZY/financial-ai-agent`, tek dal `main` | Basit akış; her faz sonunda push | feature branch + PR |
 
 ---
 
@@ -41,6 +43,7 @@ Her PR/commit bu kurallara karşı denetlenir.
 - **K-08 — Idempotency:** Aynı sembol + zaman dilimi + formasyon için tekrar bildirim gönderilmez (DB'de unique constraint + dedup penceresi).
 - **K-09 — Test:** Her modül için `pytest` + `pytest-asyncio` birim testi. Dış API'ler mock'lanır (`respx`/`unittest.mock`).
 - **K-10 — Rate limit:** Sembol taramalarında `asyncio.Semaphore` ile eşzamanlılık sınırı (varsayılan 5).
+- **K-11 — Versiyon kontrolü:** Her tamamlanan görev (veya görev kümesi) için `pytest` + `ruff check` yeşil olduğunda commit atılır ve `origin/main`'e push edilir. Commit mesajı formatı: `Faz X.Y: <kısa açıklama>`. `.env`, `*.db`, `models/*.pt` asla commit'lenmez.
 
 ---
 
@@ -133,14 +136,15 @@ Finance/
 
 ### 🔹 Faz 0 — Proje İskeleti & Ortam
 - [x] `0.1` Python 3.12 `venv` oluştur, aktifleştir
-- [ ] `0.2` Klasör ağacını + `__init__.py` dosyalarını oluştur (Bölüm 2)
-- [ ] `0.3` `requirements.txt` ve `requirements-dev.txt` yaz, kur
-- [ ] `0.4` `.gitignore` + `.env.example` (GEMINI_API_KEY, PUSHOVER_TOKEN, PUSHOVER_USER, TELEGRAM_*, DB_URL, LOG_LEVEL)
-- [ ] `0.5` `config/settings.py` — Pydantic `BaseSettings`, `@lru_cache get_settings()`
-- [ ] `0.6` `core/logger.py` — structlog, JSON + renkli konsol
-- [ ] `0.7` `main.py` — FastAPI + `lifespan` (scheduler start/stop), `/health` endpoint
-- [ ] `0.8` `git init` + ilk commit
-- **Kabul kriteri:** `uvicorn main:app --reload` çalışır, `GET /health` → `{"status":"ok"}`
+- [x] `0.2` Klasör ağacını + `__init__.py` dosyalarını oluştur (Bölüm 2)
+- [x] `0.3` `requirements.txt` ve `requirements-dev.txt` yaz, kur
+- [x] `0.4` `.gitignore` + `.env.example` (GEMINI_API_KEY, PUSHOVER_TOKEN, PUSHOVER_USER, TELEGRAM_*, DB_URL, LOG_LEVEL)
+- [x] `0.5` `config/settings.py` — Pydantic `BaseSettings`, `@lru_cache get_settings()`
+- [x] `0.6` `core/logger.py` — structlog, JSON + renkli konsol
+- [x] `0.7` `main.py` — FastAPI + `lifespan` (scheduler start/stop), `/health` endpoint
+- [x] `0.8` `git init` + ilk commit
+- **Kabul kriteri:** ✅ `pytest` yeşil (`tests/test_health.py`), `ruff check` temiz, `GET /health` → `{"status":"ok"}`
+- **Not:** `pydantic-settings` liste alanlarını JSON olarak parse ettiğinden `BIST_SYMBOLS`/`NASDAQ_SYMBOLS` CSV string olarak okunur; `bist_tickers` / `nasdaq_tickers` property'leri listeye çevirir.
 
 ### 🔹 Faz 1 — Veri Akış Hattı
 - [ ] `1.1` `schemas/market.py` — `Candle`, `OHLCVFrame`, `SymbolConfig`
@@ -217,10 +221,12 @@ Finance/
 
 | Tarih | Faz/Görev | Yapılan | Not |
 |-------|-----------|---------|-----|
-| — | — | Yol haritası oluşturuldu | Faz 0 başlangıcı bekleniyor |
+| 2026-08-03 | — | Yol haritası oluşturuldu | ADR'ler kilitlendi |
+| 2026-08-03 | Altyapı | GitHub public repo oluşturuldu, `main` push edildi | `gh` ile; `.env` takip edilmiyor (doğrulandı) |
+| 2026-08-03 | Faz 0 (0.1–0.8) | İskelet, `.env.example`, `settings.py`, `logger.py`, `scheduler.py` (job'suz), `/health`, `tests/test_health.py`, git init | Python 3.12 venv; 1 test geçti, ruff temiz |
 
 ---
 
 ## 7. Sonraki Adım
 
-**Faz 0 → görev `0.1`–`0.8`.** Onay sonrası iskelet, bağımlılıklar ve `/health` uçtan uca ayağa kaldırılacak.
+**Faz 1 → görev `1.1`–`1.8`.** Veri akış hattı: `schemas/market.py`, async `data_fetcher`, `chart_factory` (BytesIO → ndarray), indikatörler, DB modelleri ve testler.
