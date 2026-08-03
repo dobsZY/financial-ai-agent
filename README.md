@@ -49,4 +49,19 @@ pytest
 - **Faz 0** — iskelet, konfigürasyon, loglama, scheduler lifespan, `/health` ✅
 - **Faz 1** — veri akış hattı: async `yfinance` çekimi, RAM-içi grafik üretimi (`BytesIO` → `ndarray`),
   RSI/EMA/MACD indikatörleri, SQLite + Alembic şeması ve idempotent mum yazımı ✅
-- **Sıradaki:** Faz 2 — YOLO görsel analiz + Gemini metin analiz modülleri
+- **Faz 2** — yapay zeka modülleri: analizci registry'si, kural tabanlı formasyon tespiti
+  (double top/bottom, omuz-baş-omuz, üçgenler), YOLO analizcisi (fine-tune edilmiş model
+  varsa devreye girer), KAP + SEC scraper'ları, Gemini JSON şemalı özetleme (kota + cache) ✅
+- **Sıradaki:** Faz 3 — skorlama, dedup'lı bildirim ve zamanlanmış tarama
+
+### Formasyon tespiti hakkında
+
+Hazır YOLO ağırlıkları grafik formasyonu sınıfları içermediği için varsayılan analizci
+kural tabanlıdır (`ai_modules/pattern_rules.py`). Fine-tune için:
+
+```powershell
+python training/train_vision.py --epochs 100
+```
+
+Eğitim sonrası `.env` içindeki `YOLO_MODEL_PATH` üretilen ağırlığa yönlendirilir ve
+`YoloAnalyzer` otomatik olarak etkinleşir.

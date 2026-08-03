@@ -1,0 +1,19 @@
+# YOLO formasyon veri seti sablonu (ROADMAP 2.4)
+# Klasor yapisi:
+#   datasets/patterns/images/{train,val}/*.png
+#   datasets/patterns/labels/{train,val}/*.txt   (class_id cx cy w h - normalize)
+
+path: ../datasets/patterns
+train: images/train
+val: images/val
+
+names:
+  0: double_top
+  1: double_bottom
+  2: head_shoulders
+  3: inv_head_shoulders
+  4: asc_triangle
+  5: desc_triangle
+  6: bull_flag
+  7: bear_flag
+  8: cup_handle
