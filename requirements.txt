@@ -1,0 +1,41 @@
+# --- Web / API ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# --- HTTP / Retry ---
+httpx==0.28.1
+tenacity==9.0.0
+
+# --- Market data & charting ---
+yfinance==0.2.51
+pandas==2.2.3
+numpy==1.26.4
+mplfinance==0.12.10b0
+matplotlib==3.9.4
+opencv-python-headless==4.10.0.84
+pillow==11.0.0
+
+# --- Scheduling ---
+apscheduler==3.11.0
+tzdata==2024.2
+
+# --- Database ---
+sqlalchemy==2.0.36
+aiosqlite==0.20.0
+alembic==1.14.0
+greenlet==3.1.1
+
+# --- AI ---
+google-generativeai==0.8.3
+ultralytics==8.3.55
+
+# --- Scraping ---
+selectolax==0.3.27
+
+# --- UI (Faz 4) ---
+flet==0.25.2
+
+# --- Logging ---
+structlog==24.4.0
