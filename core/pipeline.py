@@ -17,7 +17,7 @@ from core.indicators import trend_confirmation
 from database import db_manager
 from notifications.base import Notification, Priority, notify
 from schemas.market import Interval, OHLCVFrame, SymbolConfig
-from schemas.news import NewsItem
+from schemas.news import NewsItem, NewsSource
 from schemas.signal import Detection, SignalCandidate
 
 logger = get_logger(__name__)
@@ -278,6 +278,39 @@ async def run_news_poll(
         stats["summarized"] += 1
 
     logger.info("pipeline.news_poll_completed", **stats)
+    return stats
+
+
+async def backfill_summaries(limit: int = 20) -> dict[str, int]:
+    """Ozetsiz kalan haberleri sonradan ozetler.
+
+    LLM kotasi doldugunda devre kesici devreye girer ve o sirada kaydedilen
+    haberler ozetsiz kalir; `run_news_poll` yalnizca **yeni** haberleri isledigi
+    icin bunlar bir daha ele alinmaz. Kota geri geldiginde bu is onlari tamamlar.
+    """
+    rows = await db_manager.news_without_summary(limit=limit)
+    stats = {"pending": len(rows), "summarized": 0, "failed": 0}
+
+    for news, ticker in rows:
+        item = NewsItem(
+            source=NewsSource(news.source),
+            external_id=news.external_id,
+            title=news.title,
+            ticker=ticker,
+            url=news.url,
+            published_at=news.published_at,
+            raw_text=news.raw_text,
+        )
+        summary = await summarize_safe(item, await _news_context(item))
+        if summary is None:
+            stats["failed"] += 1
+            continue
+
+        async with db_manager.session_scope() as session:
+            await db_manager.attach_summary(session, news.id, summary)
+        stats["summarized"] += 1
+
+    logger.info("pipeline.backfill_completed", **stats)
     return stats
 
 

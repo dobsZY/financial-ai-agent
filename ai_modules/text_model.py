@@ -104,7 +104,7 @@ def get_model() -> Any:
         generation_config={
             "response_mime_type": "application/json",
             "temperature": 0.2,
-            "max_output_tokens": 512,
+            "max_output_tokens": settings.llm_max_output_tokens,
         },
     )
     _model_name = settings.gemini_model
@@ -132,6 +132,21 @@ def _extract_json(text: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise LLMError("Beklenen JSON nesnesi degil")
     return payload
+
+
+def _ensure_complete(response: Any) -> None:
+    """Cikti token butcesine takilip kesildiyse anlasilir hata verir.
+
+    Aksi halde yarim JSON `_extract_json`'da anlamsiz bir parse hatasina donusur.
+    """
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        return
+    reason = str(getattr(candidates[0], "finish_reason", "")).upper()
+    if "MAX_TOKENS" in reason:
+        raise LLMError(
+            "LLM ciktisi token butcesine takildi; LLM_MAX_OUTPUT_TOKENS degerini artirin"
+        )
 
 
 def _token_count(response: Any) -> int | None:
@@ -165,6 +180,8 @@ async def summarize(
             _block_for_today(str(exc)[:200])
             raise LLMQuotaExceeded(f"Gemini kotasi/kredisi tukendi: {exc}") from exc
         raise LLMError(f"Gemini cagrisi basarisiz: {exc}") from exc
+
+    _ensure_complete(response)
 
     text = getattr(response, "text", "") or ""
     payload = _extract_json(text)

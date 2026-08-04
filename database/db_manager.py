@@ -473,6 +473,21 @@ async def attach_summary(
     return record
 
 
+async def news_without_summary(limit: int = 20) -> list[tuple[NewsItem, str | None]]:
+    """Ozeti olmayan haberler (kota kesintisinde birikenler); en yeni once."""
+    async with session_scope() as session:
+        statement = (
+            select(NewsItem, Symbol.ticker)
+            .outerjoin(Symbol, NewsItem.symbol_id == Symbol.id)
+            .outerjoin(LLMSummary, LLMSummary.news_id == NewsItem.id)
+            .where(LLMSummary.id.is_(None))
+            .order_by(NewsItem.created_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(statement)
+        return [(row[0], row[1]) for row in result.all()]
+
+
 async def recent_sentiment(ticker: str, hours: int | None = None) -> float:
     """Sembol icin son N saatteki ortalama haber duyarliligi (skorlama girdisi)."""
     window_hours = hours if hours is not None else get_settings().sentiment_lookback_hours

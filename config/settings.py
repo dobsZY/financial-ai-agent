@@ -25,8 +25,11 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'data' / 'finance.db').as_posix()}"
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.6-flash"
     llm_daily_call_limit: int = 500
+    # Gemini 3.x "dusunme" tokenlarini da bu butceden harcar; dar tutulursa
+    # JSON cikti yarida kesilir (bkz. ROADMAP Faz 5 notu).
+    llm_max_output_tokens: int = 2048
 
     pushover_token: str = ""
     pushover_user: str = ""

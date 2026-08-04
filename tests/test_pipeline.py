@@ -322,6 +322,74 @@ async def test_news_poll_persists_summary(
     assert second["summarized"] == 0
 
 
+async def test_backfill_summarizes_only_pending_news(
+    monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, clean_db: None
+) -> None:
+    """Kota kesintisinde ozetsiz kalan haberler sonradan tamamlanir."""
+    from schemas.news import LLMSummary, NewsItem, NewsSource, RiskLevel
+
+    summarized_ids: list[str] = []
+
+    async def fake_summarize(item, context):
+        summarized_ids.append(item.external_id)
+        return LLMSummary(
+            sentiment=-0.2,
+            bullets=["Madde 1", "Madde 2", "Madde 3"],
+            risk_level=RiskLevel.MEDIUM,
+            model="test-model",
+        )
+
+    monkeypatch.setattr(pipeline, "summarize_safe", fake_summarize)
+    monkeypatch.setattr(pipeline, "_news_context", lambda item: _async_value("baglam"))
+
+    # Biri ozetli, ikisi ozetsiz kaydedilir
+    for index in range(3):
+        item = NewsItem(
+            source=NewsSource.SEC,
+            external_id=f"pending-{index}",
+            title=f"Haber {index}",
+            ticker="AAPL",
+        )
+        summary = (
+            LLMSummary(sentiment=0.1, bullets=["var"], model="onceki") if index == 0 else None
+        )
+        async with db_manager.session_scope() as session:
+            await db_manager.save_news_item(session, item, summary)
+
+    stats = await pipeline.backfill_summaries(limit=10)
+
+    assert stats == {"pending": 2, "summarized": 2, "failed": 0}
+    assert sorted(summarized_ids) == ["pending-1", "pending-2"]
+    assert await db_manager.news_without_summary() == []
+
+    # Tekrar calistirilirsa yapacak is kalmaz (LLM cagrisi yok)
+    assert await pipeline.backfill_summaries() == {"pending": 0, "summarized": 0, "failed": 0}
+    assert len(summarized_ids) == 2
+
+
+async def test_backfill_counts_llm_failures(
+    monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, clean_db: None
+) -> None:
+    from schemas.news import NewsItem, NewsSource
+
+    async def failing_summarize(item, context):
+        return None
+
+    monkeypatch.setattr(pipeline, "summarize_safe", failing_summarize)
+    monkeypatch.setattr(pipeline, "_news_context", lambda item: _async_value("baglam"))
+
+    async with db_manager.session_scope() as session:
+        await db_manager.save_news_item(
+            session,
+            NewsItem(source=NewsSource.KAP, external_id="x1", title="Haber", ticker="THYAO.IS"),
+        )
+
+    stats = await pipeline.backfill_summaries()
+
+    assert stats == {"pending": 1, "summarized": 0, "failed": 1}
+    assert len(await db_manager.news_without_summary()) == 1, "Basarisiz haber kuyrukta kalmali"
+
+
 async def test_tracked_news_poll_records_job_run(
     monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, clean_db: None
 ) -> None:

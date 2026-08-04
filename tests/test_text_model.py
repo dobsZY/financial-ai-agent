@@ -76,6 +76,59 @@ def test_extract_json_raises_on_garbage() -> None:
         text_model._extract_json("bu bir JSON degil")
 
 
+def test_truncated_output_reports_token_budget() -> None:
+    """Gemini 3.x dusunme tokenlarini da harcar; kesilen cikti anlasilir hata vermeli."""
+
+    class _Candidate:
+        finish_reason = "MAX_TOKENS"
+
+    class _Truncated:
+        candidates = [_Candidate()]
+
+    with pytest.raises(LLMError, match="LLM_MAX_OUTPUT_TOKENS"):
+        text_model._ensure_complete(_Truncated())
+
+
+def test_complete_output_passes_check() -> None:
+    class _Candidate:
+        finish_reason = "STOP"
+
+    class _Complete:
+        candidates = [_Candidate()]
+
+    text_model._ensure_complete(_Complete())
+    text_model._ensure_complete(object())  # candidates alani olmayan yanit
+
+
+def test_generation_config_uses_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeGenai:
+        @staticmethod
+        def configure(api_key: str) -> None:
+            captured["api_key"] = api_key
+
+        @staticmethod
+        def GenerativeModel(**kwargs: object) -> str:  # noqa: N802 - SDK adi
+            captured.update(kwargs)
+            return "model"
+
+    settings = get_settings().model_copy(
+        update={"gemini_api_key": "k", "gemini_model": "gemini-3.6-flash", "llm_max_output_tokens": 4096}
+    )
+    monkeypatch.setattr(text_model, "get_settings", lambda: settings)
+    monkeypatch.setitem(__import__("sys").modules, "google.generativeai", _FakeGenai)
+    monkeypatch.setattr(text_model, "_model", None)
+
+    text_model.get_model()
+
+    config = captured["generation_config"]
+    assert isinstance(config, dict)
+    assert config["max_output_tokens"] == 4096
+    assert config["response_mime_type"] == "application/json"
+    assert captured["model_name"] == "gemini-3.6-flash"
+
+
 async def test_summarize_returns_validated_summary(
     monkeypatch: pytest.MonkeyPatch, news_item: NewsItem
 ) -> None:

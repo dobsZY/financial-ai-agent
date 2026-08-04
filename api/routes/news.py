@@ -4,6 +4,7 @@ import json
 
 from fastapi import APIRouter, Query
 
+from core.pipeline import backfill_summaries
 from database import db_manager
 from database.models import LLMSummary, NewsItem
 from schemas.news import NewsRead
@@ -32,6 +33,14 @@ def _to_read(item: NewsItem, ticker: str | None, summary: LLMSummary | None) -> 
         risk_level=summary.risk_level if summary else None,
         model=summary.model if summary else None,
     )
+
+
+@router.post("/news/summarize")
+async def summarize_pending(
+    limit: int = Query(default=20, ge=1, le=100),
+) -> dict[str, int]:
+    """Kota kesintisinde ozetsiz kalan haberleri tamamlar."""
+    return await backfill_summaries(limit=limit)
 
 
 @router.get("/news", response_model=list[NewsRead])

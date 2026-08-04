@@ -50,6 +50,8 @@ alembic upgrade head
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Bildirim için | [@BotFather](https://t.me/BotFather) ile bot açın, bota `/start` yazın |
 | `PUSHOVER_TOKEN`, `PUSHOVER_USER` | Opsiyonel | Yedek bildirim kanalı |
 | `GEMINI_API_KEY` | Haber özeti için | Boşsa özetleme atlanır, akış düşmez |
+| `GEMINI_MODEL` | — | Varsayılan `gemini-3.6-flash`. Kullanılabilir modeller anahtara göre değişir; eski `gemini-2.5-*` yeni projelere kapalı olabilir |
+| `LLM_MAX_OUTPUT_TOKENS` | — | Gemini 3.x düşünme tokenlarını da bu bütçeden harcar; dar değer JSON çıktıyı keser (varsayılan 2048) |
 | `MIN_CONFIDENCE` / `MIN_NOTIFY_SCORE` | — | Kayıt eşiği (0.55) / bildirim eşiği (0.60) |
 | `SIGNAL_COOLDOWN_MINUTES` | — | Aynı sembol+formasyon için tekrar bildirim yasağı (240 dk) |
 | `NOTIFY_CHANNEL_ORDER` | — | Sıralı deneme; ilk başarılı kanalda durur (`telegram,pushover`) |
@@ -89,7 +91,7 @@ Hafta sonu ve sabit tarihli resmî tatiller atlanır (`core/market_hours.py`).
 | `GET /signals`, `GET /signals/{id}` | Sinyal listesi (ticker / min_score filtreli) |
 | `POST /scan`, `POST /news/poll` | Manuel tarama / bildirim yoklaması (`background: true` ile asenkron) |
 | `GET /symbols` + `POST` / `PATCH` / `DELETE` | İzleme listesi CRUD |
-| `GET /news` | Haberler + LLM özetleri |
+| `GET /news`, `POST /news/summarize` | Haberler + LLM özetleri; kota kesintisinde özetsiz kalanları tamamlama |
 | `GET /charts/{ticker}` | Mum grafiği (PNG, RAM'de üretilir) |
 | `GET /jobs` | Son iş çalıştırmaları |
 
