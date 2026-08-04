@@ -8,7 +8,9 @@ from sqlalchemy import func, select
 from ai_modules.base import PatternAnalyzer
 from core import pipeline
 from database import db_manager
-from database.models import JobRun, Signal
+from database.models import JobRun
+from database.models import LLMSummary as LLMSummaryRow
+from database.models import Signal
 from notifications.base import Notification
 from schemas.market import Interval, OHLCVFrame
 from schemas.signal import Detection, Pattern
@@ -41,6 +43,10 @@ def _detection(confidence: float = 0.95, pattern: Pattern = Pattern.BULL_FLAG) -
     return Detection(pattern=pattern, confidence=confidence, source="fake")
 
 
+async def _async_value(value: str) -> str:
+    return value
+
+
 @pytest.fixture
 def notify_spy(monkeypatch: pytest.MonkeyPatch) -> _NotifySpy:
     spy = _NotifySpy()
@@ -52,7 +58,7 @@ def notify_spy(monkeypatch: pytest.MonkeyPatch) -> _NotifySpy:
 def stub_pipeline(monkeypatch: pytest.MonkeyPatch, frame: OHLCVFrame) -> None:
     """Tum dis bagimliliklari (veri cekme, indikator, grafik) sabitler."""
 
-    async def fake_fetch_many(configs, **kwargs):  # type: ignore[no-untyped-def]
+    async def fake_fetch_many(configs, **kwargs):
         return {config.yf_ticker: frame for config in configs}
 
     monkeypatch.setattr(pipeline, "fetch_many", fake_fetch_many)
@@ -94,10 +100,14 @@ async def test_second_scan_is_deduplicated(
     clean_db: None,
 ) -> None:
     _use_analyzers(monkeypatch, _FakeAnalyzer([_detection()]))
-    kwargs = {"tickers": ["AAPL"], "interval": Interval.H1, "attach_chart": False}
 
-    first = await pipeline.run_scan(**kwargs)
-    second = await pipeline.run_scan(**kwargs)
+    async def scan() -> pipeline.ScanResult:
+        return await pipeline.run_scan(
+            tickers=["AAPL"], interval=Interval.H1, attach_chart=False
+        )
+
+    first = await scan()
+    second = await scan()
 
     assert first.saved == 1
     assert second.saved == 0
@@ -165,7 +175,7 @@ async def test_failing_analyzer_does_not_break_scan(
 async def test_missing_data_is_reported_not_raised(
     monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, frame: OHLCVFrame, clean_db: None
 ) -> None:
-    async def partial_fetch(configs, **kwargs):  # type: ignore[no-untyped-def]
+    async def partial_fetch(configs, **kwargs):
         return {configs[0].yf_ticker: frame}
 
     monkeypatch.setattr(pipeline, "fetch_many", partial_fetch)
@@ -186,7 +196,7 @@ async def test_chart_failure_does_not_block_notification(
     notify_spy: _NotifySpy,
     clean_db: None,
 ) -> None:
-    async def broken_chart(frame: OHLCVFrame):  # type: ignore[no-untyped-def]
+    async def broken_chart(frame: OHLCVFrame):
         raise RuntimeError("mplfinance hatasi")
 
     monkeypatch.setattr(pipeline, "render_chart", broken_chart)
@@ -251,7 +261,7 @@ async def test_tracked_scan_records_job_run(
 async def test_tracked_scan_logs_error_and_alerts(
     monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, clean_db: None
 ) -> None:
-    async def boom(**kwargs):  # type: ignore[no-untyped-def]
+    async def boom(**kwargs):
         raise RuntimeError("veri kaynagi coktu")
 
     monkeypatch.setattr(pipeline, "run_scan", boom)
@@ -266,10 +276,56 @@ async def test_tracked_scan_logs_error_and_alerts(
     assert len(notify_spy.sent) == 1, "3.8: job hatasi uyari bildirimi uretmeli"
 
 
+async def test_news_poll_persists_summary(
+    monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, clean_db: None
+) -> None:
+    """Haber kaydedilir ve LLM ozeti ayni habere baglanir (attach_summary yolu)."""
+    from schemas.news import LLMSummary, NewsItem, NewsSource, RiskLevel
+
+    item = NewsItem(
+        source=NewsSource.KAP,
+        external_id="998",
+        title="GARANTI temettu aciklamasi",
+        ticker="GARAN.IS",
+    )
+    summary = LLMSummary(
+        sentiment=0.5,
+        bullets=["Temettu aciklandi", "Nakit akisi guclu", "Risk dusuk"],
+        risk_level=RiskLevel.LOW,
+        model="test-model",
+        tokens=42,
+    )
+
+    async def fake_kap(**kwargs):
+        return [item]
+
+    async def fake_summarize(news_item, context):
+        return summary
+
+    monkeypatch.setattr("scrapers.kap_scraper.fetch_disclosures", fake_kap)
+    monkeypatch.setattr(pipeline, "summarize_safe", fake_summarize)
+    monkeypatch.setattr(pipeline, "_news_context", lambda item: _async_value("baglam"))
+
+    stats = await pipeline.run_news_poll(tickers=["GARAN.IS"])
+
+    assert stats == {"fetched": 1, "new": 1, "summarized": 1, "errors": 0}
+
+    async with db_manager.session_scope() as session:
+        stored = (await session.execute(select(LLMSummaryRow))).scalar_one()
+    assert stored.sentiment == 0.5
+    assert stored.model == "test-model"
+    assert "Temettu aciklandi" in stored.bullets_json
+
+    # Ayni haber tekrar gelirse yeniden ozetlenmez (K-08 + LLM maliyeti)
+    second = await pipeline.run_news_poll(tickers=["GARAN.IS"])
+    assert second["new"] == 0
+    assert second["summarized"] == 0
+
+
 async def test_tracked_news_poll_records_job_run(
     monkeypatch: pytest.MonkeyPatch, notify_spy: _NotifySpy, clean_db: None
 ) -> None:
-    async def fake_poll(**kwargs):  # type: ignore[no-untyped-def]
+    async def fake_poll(**kwargs):
         return {"fetched": 4, "new": 2, "summarized": 2, "errors": 0}
 
     monkeypatch.setattr(pipeline, "run_news_poll", fake_poll)

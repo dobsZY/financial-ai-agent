@@ -83,12 +83,14 @@ async def test_backup_takes_over_when_primary_fails(
 
 
 async def test_channel_exception_does_not_break_fan_out(
-    fake_registry: dict[str, _FakeNotifier], notification: Notification
+    fake_registry: dict[str, _FakeNotifier],
+    notification: Notification,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def boom(_: Notification) -> bool:
+    async def boom(notification: Notification) -> bool:
         raise RuntimeError("kanal coktu")
 
-    fake_registry["telegram"].send = boom  # type: ignore[method-assign]
+    monkeypatch.setattr(fake_registry["telegram"], "send", boom)
 
     delivered = await base.notify(notification, fan_out=True)
 

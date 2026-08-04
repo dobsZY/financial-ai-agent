@@ -94,7 +94,7 @@ def _build_notification(
     return Notification(
         title=title,
         body="\n".join(body_lines),
-        priority=Priority.HIGH if candidate.final_score >= 0.8 else Priority.NORMAL,
+        priority=Priority.HIGH if (candidate.final_score or 0.0) >= 0.8 else Priority.NORMAL,
         image_png=image_png,
     )
 
@@ -261,8 +261,8 @@ async def run_news_poll(
 
     for item in items:
         async with db_manager.session_scope() as session:
-            existing = await db_manager.save_news_item(session, item)
-        if existing is None:
+            saved = await db_manager.save_news_item(session, item)
+        if saved is None:
             continue
 
         stats["new"] += 1
@@ -274,7 +274,7 @@ async def run_news_poll(
             continue
 
         async with db_manager.session_scope() as session:
-            await db_manager.attach_summary(session, item, summary)
+            await db_manager.attach_summary(session, saved.id, summary)
         stats["summarized"] += 1
 
     logger.info("pipeline.news_poll_completed", **stats)

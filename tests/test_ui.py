@@ -69,6 +69,9 @@ def test_to_base64_roundtrip() -> None:
 
 
 def test_signal_card_builds_without_page() -> None:
+    async def noop(signal: dict[str, object]) -> None:
+        return None
+
     card = SignalCard(
         {
             "id": 1,
@@ -83,7 +86,7 @@ def test_signal_card_builds_without_page() -> None:
             "notified_at": None,
         },
         client=ApiClient(base_url="http://test"),
-        on_open_chart=lambda signal: None,  # type: ignore[arg-type]
+        on_open_chart=noop,
     )
     assert isinstance(card.content, ft.Container)
 

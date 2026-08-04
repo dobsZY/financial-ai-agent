@@ -1,0 +1,43 @@
+services:
+  app:
+    build: .
+    image: financial-ai-agent:latest
+    container_name: financial-ai-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Konteyner disindan erisim icin 0.0.0.0'a baglan
+      API_HOST: 0.0.0.0
+      DATABASE_URL: sqlite+aiosqlite:////app/data/finance.db
+      LOG_JSON: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Veritabani ve model agirliklari konteyner disinda kalir
+      - ./data:/app/data
+      - ./models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# --- v2: SQLite yerine PostgreSQL (ADR-04) ---
+# Asagidaki servisi acip app.environment icinde DATABASE_URL'i
+# postgresql+asyncpg://finance:finance@db:5432/finance yapin
+# (requirements.txt'e asyncpg eklenmeli).
+#
+#  db:
+#    image: postgres:16-alpine
+#    restart: unless-stopped
+#    environment:
+#      POSTGRES_USER: finance
+#      POSTGRES_PASSWORD: finance
+#      POSTGRES_DB: finance
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+#
+# volumes:
+#   pgdata:

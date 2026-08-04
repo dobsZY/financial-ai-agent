@@ -6,7 +6,7 @@ import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from core import scheduler as scheduler_module
-from schemas.market import Market
+from schemas.market import Interval, Market
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ async def test_eod_scan_uses_daily_interval(monkeypatch: pytest.MonkeyPatch) -> 
 
     await scheduler_module.eod_scan(Market.BIST)
 
-    assert captured["interval"].value == "1d"
+    assert captured["interval"] is Interval.D1
 
 
 async def test_news_poll_skips_when_no_trading_day(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,39 @@ _model_path: Path | None = None
 
 def model_path() -> Path:
     return Path(get_settings().yolo_model_path)
+
+
+def metrics_path() -> Path:
+    """Egitim sonrasi yazilan model kayit dosyasi (5.5)."""
+    return model_path().parent / "model_metrics.json"
+
+
+def model_info(load: bool = False) -> dict[str, Any]:
+    """Aktif model dosyasi + egitim metrikleri. `load=False` iken model yuklenmez."""
+    path = model_path()
+    info: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.exists(),
+        "size_mb": round(path.stat().st_size / 1_048_576, 2) if path.exists() else None,
+        "registry": None,
+        "classes": None,
+        "pattern_classes": None,
+    }
+
+    registry_file = metrics_path()
+    if registry_file.exists():
+        try:
+            info["registry"] = json.loads(registry_file.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as exc:
+            logger.warning("yolo.metrics_unreadable", error=str(exc))
+
+    model = _model if not load else (load_model() if path.exists() else None)
+    if model is not None:
+        names = getattr(model, "names", {}) or {}
+        info["classes"] = list(names.values()) if isinstance(names, dict) else list(names)
+        info["pattern_classes"] = bool(_pattern_class_map(names))
+
+    return info
 
 
 def _pattern_class_map(names: dict[int, str] | list[str]) -> dict[int, Pattern]:

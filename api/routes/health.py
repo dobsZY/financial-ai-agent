@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
+from ai_modules.vision_model import model_info
 from config.settings import get_settings
 from core.scheduler import get_scheduler
 
@@ -27,3 +28,12 @@ async def health() -> dict[str, object]:
             "telegram": settings.telegram_enabled,
         },
     }
+
+
+@router.get("/system/model")
+async def vision_model() -> dict[str, object]:
+    """Aktif YOLO modelinin surumu ve egitim metrikleri (5.5).
+
+    `load=false`: model dosyasi diske dokunmadan raporlanir; agirliklari yuklemez.
+    """
+    return model_info(load=False)

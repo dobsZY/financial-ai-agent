@@ -241,6 +241,27 @@ async def get_signal(signal_id: int) -> tuple[Signal, str] | None:
         return (row[0], row[1]) if row is not None else None
 
 
+async def signals_for_backtest(
+    limit: int = 500,
+    min_score: float | None = None,
+    pattern: str | None = None,
+) -> list[tuple[Signal, str, str]]:
+    """(Signal, ticker, interval) uclusu; backtest icin en eski once."""
+    async with session_scope() as session:
+        statement = (
+            select(Signal, Symbol.ticker, Symbol.interval)
+            .join(Symbol, Signal.symbol_id == Symbol.id)
+            .order_by(Signal.bucket_ts.asc())
+            .limit(limit)
+        )
+        if min_score is not None:
+            statement = statement.where(Signal.final_score >= min_score)
+        if pattern:
+            statement = statement.where(Signal.pattern == pattern)
+        result = await session.execute(statement)
+        return [(row[0], row[1], row[2]) for row in result.all()]
+
+
 async def list_symbols(active_only: bool = False) -> list[Symbol]:
     async with session_scope() as session:
         statement = select(Symbol).order_by(Symbol.ticker)
@@ -410,6 +431,46 @@ async def list_news(
             statement = statement.where(NewsItem.source == source.strip().upper())
         result = await session.execute(statement)
         return [(row[0], row[1], row[2]) for row in result.all()]
+
+
+async def attach_summary(
+    session: AsyncSession,
+    news_id: int,
+    summary: LLMSummarySchema,
+) -> LLMSummary | None:
+    """Kaydedilmis habere LLM ozetini baglar; ozet zaten varsa uzerine yazar."""
+    news = await session.get(NewsItem, news_id)
+    if news is None:
+        logger.warning("db.news_missing_for_summary", news_id=news_id)
+        return None
+
+    existing = await session.execute(
+        select(LLMSummary).where(LLMSummary.news_id == news_id)
+    )
+    row = existing.scalar_one_or_none()
+    bullets_json = json.dumps(summary.bullets, ensure_ascii=False)
+
+    if row is not None:
+        row.sentiment = summary.sentiment
+        row.bullets_json = bullets_json
+        row.risk_level = summary.risk_level.value
+        row.model = summary.model
+        row.tokens = summary.tokens
+        await session.flush()
+        return row
+
+    record = LLMSummary(
+        news_id=news_id,
+        sentiment=summary.sentiment,
+        bullets_json=bullets_json,
+        risk_level=summary.risk_level.value,
+        model=summary.model,
+        tokens=summary.tokens,
+    )
+    session.add(record)
+    await session.flush()
+    logger.info("db.summary_attached", news_id=news_id, sentiment=summary.sentiment)
+    return record
 
 
 async def recent_sentiment(ticker: str, hours: int | None = None) -> float:

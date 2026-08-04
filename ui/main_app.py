@@ -235,8 +235,8 @@ class Dashboard:
         dialog = ft.AlertDialog(
             title=ft.Text(f"{ticker} - {pattern_label(signal.get('pattern', ''))}"),
             content=image_area,
-            actions=[ft.TextButton("Kapat", on_click=lambda _: self.page.close(dialog))],
         )
+        dialog.actions = [ft.TextButton("Kapat", on_click=lambda _: self.page.close(dialog))]
         self.page.open(dialog)
 
         payload = await self.client.chart_png(ticker, width=1520, height=960, candles=150)

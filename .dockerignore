@@ -1,0 +1,28 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+
+# Sirlar ve yerel veri imaja girmez (K-05)
+.env
+data/
+logs/
+*.db
+*.sqlite3
+models/*.pt
+training/runs/
+
+# Yerel planlama dokumanlari
+finance.md
+ROADMAP.md
+
+.idea
+.vscode
+.DS_Store
