@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     weight_sentiment: float = 0.3
     weight_indicator: float = 0.2
 
+    ui_refresh_seconds: int = 30
+
     yolo_model_path: str = "models/yolov8n.pt"
     chart_width: int = 640
     chart_height: int = 640

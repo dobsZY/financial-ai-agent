@@ -53,6 +53,24 @@ class LLMSummary(BaseModel):
         return cleaned
 
 
+class NewsRead(BaseModel):
+    """API cikti sozlesmesi: haber + (varsa) LLM ozeti."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source: str
+    title: str
+    ticker: str | None = None
+    url: str | None = None
+    published_at: datetime | None = None
+    created_at: datetime
+    sentiment: float | None = None
+    bullets: list[str] = Field(default_factory=list)
+    risk_level: str | None = None
+    model: str | None = None
+
+
 LLM_RESPONSE_SCHEMA: dict = {
     "type": "object",
     "properties": {

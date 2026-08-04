@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
+import pandas as pd
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import (
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import (
 from config.settings import get_settings
 from core.logger import get_logger
 from database.models import Base, Candle, JobRun, LLMSummary, NewsItem, Signal, Symbol
-from schemas.market import Interval, OHLCVFrame, SymbolConfig
+from schemas.market import OHLCV_COLUMNS, Interval, OHLCVFrame, SymbolConfig
 from schemas.news import LLMSummary as LLMSummarySchema
 from schemas.news import NewsItem as NewsItemSchema
 from schemas.signal import SignalCandidate
@@ -355,6 +356,60 @@ async def save_news_item(
 
     logger.info("db.news_saved", source=item.source.value, external_id=item.external_id)
     return news
+
+
+async def load_frame(
+    ticker: str,
+    interval: Interval = Interval.H1,
+    limit: int = 200,
+) -> OHLCVFrame | None:
+    """Kaydedilmis mumlardan OHLCVFrame kurar (UI grafigi icin; yeniden cekim yok)."""
+    config = SymbolConfig.from_ticker(ticker, interval=interval)
+
+    async with session_scope() as session:
+        statement = (
+            select(Candle.ts, Candle.open, Candle.high, Candle.low, Candle.close, Candle.volume)
+            .join(Symbol, Candle.symbol_id == Symbol.id)
+            .where(Symbol.ticker == config.yf_ticker)
+            .where(Candle.interval == interval.value)
+            .order_by(Candle.ts.desc())
+            .limit(limit)
+        )
+        rows = (await session.execute(statement)).all()
+
+    if not rows:
+        return None
+
+    frame = pd.DataFrame(
+        [row[1:] for row in reversed(rows)],
+        columns=list(OHLCV_COLUMNS),
+        index=pd.DatetimeIndex(
+            [row[0] for row in reversed(rows)], name="ts"
+        ).tz_localize(timezone.utc, ambiguous="raise", nonexistent="raise"),
+    )
+    return OHLCVFrame(symbol=config, df=frame)
+
+
+async def list_news(
+    limit: int = 50,
+    ticker: str | None = None,
+    source: str | None = None,
+) -> list[tuple[NewsItem, str | None, LLMSummary | None]]:
+    """(haber, sembol kodu, LLM ozeti) uclusu; en yeni once."""
+    async with session_scope() as session:
+        statement = (
+            select(NewsItem, Symbol.ticker, LLMSummary)
+            .outerjoin(Symbol, NewsItem.symbol_id == Symbol.id)
+            .outerjoin(LLMSummary, LLMSummary.news_id == NewsItem.id)
+            .order_by(NewsItem.created_at.desc())
+            .limit(limit)
+        )
+        if ticker:
+            statement = statement.where(Symbol.ticker == ticker.strip().upper())
+        if source:
+            statement = statement.where(NewsItem.source == source.strip().upper())
+        result = await session.execute(statement)
+        return [(row[0], row[1], row[2]) for row in result.all()]
 
 
 async def recent_sentiment(ticker: str, hours: int | None = None) -> float:
