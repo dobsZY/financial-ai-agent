@@ -86,3 +86,34 @@ class SignalCandidate(BaseModel):
     @property
     def direction(self) -> Direction:
         return self.detection.resolved_direction
+
+
+class SignalRead(BaseModel):
+    """API cikti sozlesmesi: kaydedilmis sinyal + sembol kodu."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    pattern: str
+    direction: str
+    confidence: float
+    final_score: float | None = None
+    price_at_signal: float | None = None
+    bucket_ts: datetime
+    created_at: datetime
+    notified_at: datetime | None = None
+
+
+class JobRunRead(BaseModel):
+    """API cikti sozlesmesi: zamanlanmis is calistirma kaydi (3.8)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_name: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    status: str
+    items_processed: int = 0
+    error_text: str | None = None

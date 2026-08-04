@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -15,8 +16,11 @@ from sqlalchemy.ext.asyncio import (
 
 from config.settings import get_settings
 from core.logger import get_logger
-from database.models import Base, Candle, JobRun, Symbol
-from schemas.market import OHLCVFrame, SymbolConfig
+from database.models import Base, Candle, JobRun, LLMSummary, NewsItem, Signal, Symbol
+from schemas.market import Interval, OHLCVFrame, SymbolConfig
+from schemas.news import LLMSummary as LLMSummarySchema
+from schemas.news import NewsItem as NewsItemSchema
+from schemas.signal import SignalCandidate
 
 logger = get_logger(__name__)
 
@@ -131,6 +135,245 @@ async def save_frames(frames: Sequence[OHLCVFrame]) -> int:
         for frame in frames:
             total += await upsert_candles(session, frame)
     return total
+
+
+async def find_recent_signal(
+    session: AsyncSession,
+    symbol_id: int,
+    pattern: str,
+    bucket_ts: datetime,
+    cutoff: datetime,
+) -> Signal | None:
+    """Ayni kova veya cooldown penceresi icinde sinyal var mi (3.6)."""
+    statement = (
+        select(Signal)
+        .where(Signal.symbol_id == symbol_id)
+        .where(Signal.pattern == pattern)
+        .where(or_(Signal.bucket_ts == bucket_ts, Signal.created_at >= cutoff))
+        .order_by(Signal.created_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(statement)
+    return result.scalar_one_or_none()
+
+
+async def save_signal(
+    session: AsyncSession,
+    candidate: SignalCandidate,
+    cutoff: datetime,
+    notified: bool = False,
+) -> Signal | None:
+    """Sinyali yazar; dedup/cooldown ihlalinde None doner ve hicbir sey yazilmaz."""
+    symbol_config = SymbolConfig.from_ticker(candidate.ticker, interval=Interval(candidate.interval))
+    symbol = await get_or_create_symbol(session, symbol_config)
+
+    existing = await find_recent_signal(
+        session, symbol.id, candidate.pattern.value, candidate.bucket_ts, cutoff
+    )
+    if existing is not None:
+        logger.info(
+            "db.signal_deduplicated",
+            ticker=candidate.ticker,
+            pattern=candidate.pattern.value,
+            existing_id=existing.id,
+        )
+        return None
+
+    signal = Signal(
+        symbol_id=symbol.id,
+        pattern=candidate.pattern.value,
+        direction=candidate.direction.value,
+        confidence=candidate.detection.confidence,
+        final_score=candidate.final_score,
+        price_at_signal=candidate.price,
+        bucket_ts=candidate.bucket_ts,
+        chart_hash=candidate.chart_hash,
+        notified_at=datetime.now(timezone.utc) if notified else None,
+    )
+    session.add(signal)
+    await session.flush()
+    logger.info(
+        "db.signal_saved",
+        ticker=candidate.ticker,
+        pattern=candidate.pattern.value,
+        score=candidate.final_score,
+        signal_id=signal.id,
+    )
+    return signal
+
+
+async def mark_notified(session: AsyncSession, signal_id: int) -> None:
+    signal = await session.get(Signal, signal_id)
+    if signal is not None:
+        signal.notified_at = datetime.now(timezone.utc)
+
+
+async def list_signals(
+    limit: int = 50,
+    ticker: str | None = None,
+    min_score: float | None = None,
+) -> list[tuple[Signal, str]]:
+    """(Signal, ticker) ciftleri; en yeni once."""
+    async with session_scope() as session:
+        statement = (
+            select(Signal, Symbol.ticker)
+            .join(Symbol, Signal.symbol_id == Symbol.id)
+            .order_by(Signal.created_at.desc())
+            .limit(limit)
+        )
+        if ticker:
+            statement = statement.where(Symbol.ticker == ticker.strip().upper())
+        if min_score is not None:
+            statement = statement.where(Signal.final_score >= min_score)
+        result = await session.execute(statement)
+        return [(row[0], row[1]) for row in result.all()]
+
+
+async def get_signal(signal_id: int) -> tuple[Signal, str] | None:
+    async with session_scope() as session:
+        statement = (
+            select(Signal, Symbol.ticker)
+            .join(Symbol, Signal.symbol_id == Symbol.id)
+            .where(Signal.id == signal_id)
+        )
+        row = (await session.execute(statement)).first()
+        return (row[0], row[1]) if row is not None else None
+
+
+async def list_symbols(active_only: bool = False) -> list[Symbol]:
+    async with session_scope() as session:
+        statement = select(Symbol).order_by(Symbol.ticker)
+        if active_only:
+            statement = statement.where(Symbol.is_active.is_(True))
+        result = await session.execute(statement)
+        return list(result.scalars().all())
+
+
+async def add_symbol(
+    ticker: str,
+    interval: Interval = Interval.H1,
+    name: str | None = None,
+) -> Symbol:
+    """Izleme listesine ekler; zaten varsa mevcut kaydi doner (idempotent)."""
+    config = SymbolConfig.from_ticker(ticker, interval=interval)
+    async with session_scope() as session:
+        symbol = await get_or_create_symbol(session, config)
+        if name is not None:
+            symbol.name = name
+        return symbol
+
+
+async def update_symbol(
+    ticker: str,
+    is_active: bool | None = None,
+    interval: Interval | None = None,
+    name: str | None = None,
+) -> Symbol | None:
+    normalized = SymbolConfig.from_ticker(ticker).yf_ticker
+    async with session_scope() as session:
+        result = await session.execute(select(Symbol).where(Symbol.ticker == normalized))
+        symbol = result.scalar_one_or_none()
+        if symbol is None:
+            return None
+        if is_active is not None:
+            symbol.is_active = is_active
+        if interval is not None:
+            symbol.interval = interval.value
+        if name is not None:
+            symbol.name = name
+        await session.flush()
+        logger.info("db.symbol_updated", ticker=normalized, is_active=symbol.is_active)
+        return symbol
+
+
+async def delete_symbol(ticker: str) -> bool:
+    """Sembolu ve bagli mum/sinyallerini siler (cascade)."""
+    normalized = SymbolConfig.from_ticker(ticker).yf_ticker
+    async with session_scope() as session:
+        result = await session.execute(select(Symbol).where(Symbol.ticker == normalized))
+        symbol = result.scalar_one_or_none()
+        if symbol is None:
+            return False
+        await session.delete(symbol)
+        logger.info("db.symbol_deleted", ticker=normalized)
+        return True
+
+
+async def list_job_runs(limit: int = 20, job_name: str | None = None) -> list[JobRun]:
+    async with session_scope() as session:
+        statement = select(JobRun).order_by(JobRun.started_at.desc()).limit(limit)
+        if job_name:
+            statement = statement.where(JobRun.job_name == job_name)
+        result = await session.execute(statement)
+        return list(result.scalars().all())
+
+
+async def save_news_item(
+    session: AsyncSession,
+    item: NewsItemSchema,
+    summary: LLMSummarySchema | None = None,
+) -> NewsItem | None:
+    """Haberi idempotent yazar; zaten varsa None doner (tekrar LLM cagrisi onlenir)."""
+    existing = await session.execute(
+        select(NewsItem)
+        .where(NewsItem.source == item.source.value)
+        .where(NewsItem.external_id == item.external_id)
+    )
+    if existing.scalar_one_or_none() is not None:
+        return None
+
+    symbol_id: int | None = None
+    if item.ticker:
+        config = SymbolConfig.from_ticker(item.ticker)
+        symbol = await get_or_create_symbol(session, config)
+        symbol_id = symbol.id
+
+    news = NewsItem(
+        symbol_id=symbol_id,
+        source=item.source.value,
+        external_id=item.external_id,
+        title=item.title[:512],
+        url=item.url,
+        published_at=item.published_at,
+        raw_text=item.raw_text,
+    )
+    session.add(news)
+    await session.flush()
+
+    if summary is not None:
+        session.add(
+            LLMSummary(
+                news_id=news.id,
+                sentiment=summary.sentiment,
+                bullets_json=json.dumps(summary.bullets, ensure_ascii=False),
+                risk_level=summary.risk_level.value,
+                model=summary.model,
+                tokens=summary.tokens,
+            )
+        )
+        await session.flush()
+
+    logger.info("db.news_saved", source=item.source.value, external_id=item.external_id)
+    return news
+
+
+async def recent_sentiment(ticker: str, hours: int | None = None) -> float:
+    """Sembol icin son N saatteki ortalama haber duyarliligi (skorlama girdisi)."""
+    window_hours = hours if hours is not None else get_settings().sentiment_lookback_hours
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+    normalized = ticker.strip().upper()
+
+    async with session_scope() as session:
+        statement = (
+            select(func.avg(LLMSummary.sentiment))
+            .join(NewsItem, LLMSummary.news_id == NewsItem.id)
+            .join(Symbol, NewsItem.symbol_id == Symbol.id)
+            .where(Symbol.ticker == normalized)
+            .where(NewsItem.created_at >= cutoff)
+        )
+        value = await session.scalar(statement)
+
+    return float(value) if value is not None else 0.0
 
 
 async def start_job_run(job_name: str) -> int:

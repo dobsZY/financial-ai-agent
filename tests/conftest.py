@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +19,21 @@ from config.settings import get_settings  # noqa: E402
 from schemas.market import Interval, OHLCVFrame, SymbolConfig  # noqa: E402
 
 get_settings.cache_clear()
+
+
+@pytest.fixture
+async def clean_db() -> AsyncIterator[None]:
+    """Her testte bos sema; testler birbirinin kaydini gormez."""
+    from database.db_manager import dispose_engine, get_engine
+    from database.models import Base
+
+    await dispose_engine()
+    engine = get_engine()
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
+        await connection.run_sync(Base.metadata.create_all)
+    yield
+    await dispose_engine()
 
 
 @pytest.fixture

@@ -1,24 +1,10 @@
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import func, select
 
 from database import db_manager
 from database.models import Candle, Symbol
 from schemas.market import OHLCVFrame
-
-
-@pytest.fixture
-async def clean_db() -> None:
-    await db_manager.dispose_engine()
-    engine = db_manager.get_engine()
-    async with engine.begin() as connection:
-        from database.models import Base
-
-        await connection.run_sync(Base.metadata.drop_all)
-        await connection.run_sync(Base.metadata.create_all)
-    yield
-    await db_manager.dispose_engine()
 
 
 async def test_upsert_candles_is_idempotent(frame: OHLCVFrame, clean_db: None) -> None:

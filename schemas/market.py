@@ -82,6 +82,32 @@ class SymbolConfig(BaseModel):
         return "Europe/Istanbul" if self.market is Market.BIST else "America/New_York"
 
 
+class SymbolRead(BaseModel):
+    """API cikti sozlesmesi: izleme listesi kaydi."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    market: str
+    name: str | None = None
+    interval: str
+    is_active: bool
+    created_at: datetime
+
+
+class SymbolCreate(BaseModel):
+    ticker: str
+    interval: Interval = Interval.H1
+    name: str | None = None
+
+
+class SymbolUpdate(BaseModel):
+    is_active: bool | None = None
+    interval: Interval | None = None
+    name: str | None = None
+
+
 class OHLCVFrame(BaseModel):
     """OHLCV zaman serisi. `df` UTC DatetimeIndex ve OHLCV_COLUMNS kolonlarina sahiptir."""
 

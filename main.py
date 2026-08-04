@@ -6,11 +6,11 @@ from typing import AsyncIterator
 import uvicorn
 from fastapi import FastAPI
 
-from api.routes import health
+from api.routes import health, signals, symbols
 from config.settings import get_settings
 from core.logger import get_logger, setup_logging
 from core.scheduler import shutdown_scheduler, start_scheduler
-from database.db_manager import dispose_engine
+from database.db_manager import dispose_engine, init_db
 
 setup_logging()
 logger = get_logger(__name__)
@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     logger.info("app.startup", env=settings.app_env, symbols=len(settings.all_symbols))
+    await init_db()
     start_scheduler()
     try:
         yield
@@ -37,6 +38,8 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(signals.router)
+app.include_router(symbols.router)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'data' / 'finance.db').as_posix()}"
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
     llm_daily_call_limit: int = 500
 
     pushover_token: str = ""
@@ -35,7 +35,12 @@ class Settings(BaseSettings):
 
     scan_concurrency: int = 5
     min_confidence: float = 0.55
+    min_notify_score: float = 0.60
     signal_cooldown_minutes: int = 240
+    notify_channel_order: str = "telegram,pushover"
+    sentiment_lookback_hours: int = 24
+    news_poll_days: int = 1
+    news_poll_interval_minutes: int = 15
     intraday_interval: str = "1h"
     bist_symbols: str = ""
     nasdaq_symbols: str = ""
@@ -73,6 +78,10 @@ class Settings(BaseSettings):
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token and self.telegram_chat_id)
+
+    @property
+    def notify_channels(self) -> list[str]:
+        return self._split_csv(self.notify_channel_order)
 
 
 @lru_cache(maxsize=1)
