@@ -20,6 +20,17 @@ _model: Any | None = None
 _model_name: str | None = None
 _call_counter: dict[date, int] = {}
 _summary_cache: dict[tuple[str, str], LLMSummary] = {}
+_blocked_until: date | None = None
+
+# Saglayici tarafli kota/limit hatalarinin imzalari
+_QUOTA_MARKERS = (
+    "resourceexhausted",
+    "resource_exhausted",
+    "429",
+    "quota",
+    "credits are depleted",
+    "rate limit",
+)
 
 
 class LLMError(RuntimeError):
@@ -39,13 +50,33 @@ def calls_today() -> int:
 
 
 def reset_usage() -> None:
+    global _blocked_until
     _call_counter.clear()
     _summary_cache.clear()
+    _blocked_until = None
+
+
+def is_quota_blocked() -> bool:
+    """Saglayici kotasi doldugunda gun sonuna kadar cagri yapilmaz."""
+    return _blocked_until == date.today()
+
+
+def _is_quota_error(exc: BaseException) -> bool:
+    haystack = f"{type(exc).__name__} {exc}".lower()
+    return any(marker in haystack for marker in _QUOTA_MARKERS)
+
+
+def _block_for_today(reason: str) -> None:
+    global _blocked_until
+    _blocked_until = date.today()
+    logger.warning("llm.quota_blocked", reason=reason)
 
 
 def _register_call() -> None:
     settings = get_settings()
     today = date.today()
+    if _blocked_until == today:
+        raise LLMQuotaExceeded("Saglayici kotasi tukendi; bugun yeni cagri yapilmayacak")
     used = _call_counter.get(today, 0)
     if used >= settings.llm_daily_call_limit:
         raise LLMQuotaExceeded(
@@ -130,6 +161,9 @@ async def summarize(
     try:
         response = await model.generate_content_async(prompt)
     except Exception as exc:  # noqa: BLE001 - SDK cesitli hatalar firlatir
+        if _is_quota_error(exc):
+            _block_for_today(str(exc)[:200])
+            raise LLMQuotaExceeded(f"Gemini kotasi/kredisi tukendi: {exc}") from exc
         raise LLMError(f"Gemini cagrisi basarisiz: {exc}") from exc
 
     text = getattr(response, "text", "") or ""
@@ -163,6 +197,9 @@ async def summarize_safe(
     """Hata durumunda None doner; tarama akisini dusurmez (K-03)."""
     if not is_configured():
         logger.warning("llm.not_configured", external_id=item.external_id)
+        return None
+    if is_quota_blocked():
+        logger.info("llm.skipped_quota_blocked", external_id=item.external_id)
         return None
     try:
         return await summarize(item, market_context)

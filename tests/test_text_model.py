@@ -119,6 +119,64 @@ async def test_summarize_enforces_daily_quota(
         await summarize(news_item, use_cache=False)
 
 
+class _QuotaError(Exception):
+    """google.api_core.exceptions.ResourceExhausted taklidi."""
+
+
+class _FailingModel:
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+        self.calls = 0
+
+    async def generate_content_async(self, prompt: str) -> None:
+        self.calls += 1
+        raise self._exc
+
+
+async def test_provider_quota_error_blocks_further_calls(
+    monkeypatch: pytest.MonkeyPatch, news_item: NewsItem
+) -> None:
+    model = _FailingModel(
+        _QuotaError("429 Your prepayment credits are depleted. Please go to AI Studio")
+    )
+    monkeypatch.setattr(text_model, "get_model", lambda: model)
+
+    with pytest.raises(LLMQuotaExceeded):
+        await summarize(news_item, use_cache=False)
+
+    assert text_model.is_quota_blocked() is True
+
+    with pytest.raises(LLMQuotaExceeded):
+        await summarize(news_item, use_cache=False)
+
+    assert model.calls == 1, "kota kilidi sonrasi API'ye tekrar gidilmemeli"
+
+
+async def test_summarize_safe_skips_when_quota_blocked(
+    monkeypatch: pytest.MonkeyPatch, news_item: NewsItem
+) -> None:
+    model = _FailingModel(_QuotaError("RESOURCE_EXHAUSTED quota exceeded"))
+    monkeypatch.setattr(text_model, "is_configured", lambda: True)
+    monkeypatch.setattr(text_model, "get_model", lambda: model)
+
+    assert await summarize_safe(news_item) is None
+    assert await summarize_safe(news_item) is None
+    assert model.calls == 1
+
+
+async def test_transient_error_does_not_block(
+    monkeypatch: pytest.MonkeyPatch, news_item: NewsItem
+) -> None:
+    monkeypatch.setattr(
+        text_model, "get_model", lambda: _FailingModel(RuntimeError("gecici baglanti hatasi"))
+    )
+
+    with pytest.raises(LLMError):
+        await summarize(news_item, use_cache=False)
+
+    assert text_model.is_quota_blocked() is False
+
+
 async def test_summarize_rejects_out_of_range_sentiment(
     monkeypatch: pytest.MonkeyPatch, news_item: NewsItem
 ) -> None:
