@@ -1,0 +1,294 @@
+<!-- @dsCard group="Yön B — Sinyal Hikayesi" -->
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yön B — Sinyal Hikayesi</title>
+<style>
+:root{
+  --bg:#0A0C10;--surface:#12151C;--raised:#181C25;--line:#232936;
+  --fg:#E6E9EF;--fg-dim:#98A2B8;--fg-mute:#5E6880;
+  --long:#35D08A;--short:#FF5D6C;--warn:#F5B54A;--brand:#5B8CFF;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font-family:"Inter","Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* Sağda ilerleme çubuğu — scroll konumuna bağlı */
+.progress{position:fixed;top:0;right:0;width:2px;height:100vh;background:#161B24;z-index:60}
+.progress i{display:block;width:100%;height:100%;background:linear-gradient(var(--brand),var(--long));
+  transform-origin:top;transform:scaleY(0);
+  animation:fill linear both;animation-timeline:scroll(root block)}
+@keyframes fill{to{transform:scaleY(1)}}
+
+.stage-label{position:fixed;left:24px;top:24px;z-index:60;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--fg-mute)}
+
+/* Her sahne: uzun bir alan + içinde sabitlenen görsel */
+.scene{height:220vh;position:relative}
+.sticky{position:sticky;top:0;height:100vh;display:grid;place-items:center;overflow:hidden}
+.inner{width:min(1000px,90vw);display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+@media(max-width:860px){.inner{grid-template-columns:1fr;gap:28px}}
+.copy h2{font-size:clamp(26px,3.6vw,40px);letter-spacing:-.035em;margin:0 0 12px;font-weight:650;line-height:1.08}
+.copy p{color:var(--fg-dim);font-size:15px;line-height:1.7;margin:0;max-width:44ch}
+.step{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--brand);margin-bottom:14px;font-weight:640}
+.step b{width:20px;height:20px;border-radius:6px;background:rgba(91,140,255,.14);
+  display:grid;place-items:center;font-family:var(--mono);font-size:11px}
+
+/* Metinler scroll ile girip çıkar */
+.copy,.visual{animation:swap linear both;animation-timeline:view(block);
+  animation-range:cover 5% cover 95%}
+@keyframes swap{
+  0%{opacity:0;transform:translateY(34px)}
+  22%,74%{opacity:1;transform:none}
+  100%{opacity:0;transform:translateY(-28px)}
+}
+
+/* ---------- Sahne 0: giriş ---------- */
+.hero{height:100vh;display:grid;place-items:center;text-align:center;position:relative;perspective:1000px}
+.hero h1{font-size:clamp(38px,7vw,86px);letter-spacing:-.05em;margin:0;font-weight:680;line-height:.98}
+.hero h1 span{background:linear-gradient(100deg,var(--brand),var(--long));-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.hero p{color:var(--fg-dim);margin:18px 0 0;font-size:16px}
+.mesh{position:absolute;inset:0;z-index:-1;transform-style:preserve-3d;
+  background:
+    radial-gradient(600px 300px at 50% 45%,rgba(91,140,255,.12),transparent 70%),
+    radial-gradient(400px 240px at 70% 60%,rgba(53,208,138,.08),transparent 70%);
+  animation:drift linear both;animation-timeline:scroll(root block);animation-range:0 100vh}
+@keyframes drift{to{transform:translateZ(160px) rotateX(24deg);opacity:.25}}
+.scrollcue{position:absolute;bottom:36px;font-size:12px;color:var(--fg-mute);
+  animation:bob 2.2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(7px)}}
+
+/* ---------- Görsel: izleme listesi ızgarası ---------- */
+.tickers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;transform-style:preserve-3d;
+  transform:rotateX(12deg) rotateY(-10deg)}
+.tick{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;
+  font-family:var(--mono);font-size:13px;position:relative;overflow:hidden}
+.tick small{display:block;color:var(--fg-mute);font-size:10px;margin-top:5px}
+.tick::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(91,140,255,.16),transparent);
+  transform:translateX(-100%);animation:sweep 2.4s ease-in-out infinite}
+.tick:nth-child(2)::after{animation-delay:.2s}.tick:nth-child(3)::after{animation-delay:.4s}
+.tick:nth-child(4)::after{animation-delay:.6s}.tick:nth-child(5)::after{animation-delay:.8s}
+.tick:nth-child(6)::after{animation-delay:1s}
+@keyframes sweep{0%{transform:translateX(-100%)}55%,100%{transform:translateX(100%)}}
+
+/* ---------- Görsel: grafik + perde ---------- */
+.chartbox{position:relative;background:var(--surface);border:1px solid var(--line);
+  border-radius:16px;overflow:hidden;transform:perspective(1000px) rotateY(-9deg) rotateX(5deg);
+  box-shadow:0 40px 90px -50px #000}
+canvas{display:block;width:100%;height:270px}
+.curtain{position:absolute;inset:0;background:var(--surface);transform-origin:right;
+  animation:reveal linear both;animation-timeline:view(block);animation-range:cover 18% cover 55%}
+@keyframes reveal{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.overlay{position:absolute;inset:0;opacity:0;
+  animation:show linear both;animation-timeline:view(block);animation-range:cover 45% cover 62%}
+@keyframes show{to{opacity:1}}
+.box{position:absolute;left:52%;top:26%;width:40%;height:44%;border:1.5px dashed var(--brand);
+  border-radius:8px;background:rgba(91,140,255,.06)}
+.box b{position:absolute;top:-11px;left:8px;background:var(--brand);color:#08111f;font-size:10px;
+  padding:2px 7px;border-radius:5px;letter-spacing:.04em}
+
+/* ---------- Görsel: skor birleşimi ---------- */
+.scorebox{display:grid;gap:12px}
+.sline{display:grid;grid-template-columns:118px 1fr 52px;align-items:center;gap:12px;font-size:12px}
+.sline span{color:var(--fg-dim)}
+.strack{height:8px;background:#161B24;border-radius:99px;overflow:hidden}
+.strack i{display:block;height:100%;border-radius:99px;transform-origin:left;transform:scaleX(0);
+  animation:grow linear both;animation-timeline:view(block)}
+.sline:nth-child(1) .strack i{animation-range:cover 20% cover 40%}
+.sline:nth-child(2) .strack i{animation-range:cover 28% cover 48%}
+.sline:nth-child(3) .strack i{animation-range:cover 36% cover 56%}
+@keyframes grow{to{transform:scaleX(1)}}
+.sline b{font-family:var(--mono);text-align:right}
+.total{margin-top:10px;background:var(--raised);border:1px solid #2A3140;border-radius:14px;
+  padding:18px;display:flex;align-items:center;gap:16px;
+  animation:pop linear both;animation-timeline:view(block);animation-range:cover 52% cover 68%}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.total b{font-size:40px;font-weight:660;letter-spacing:-.03em;color:var(--long)}
+.total div span{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-mute)}
+.total div p{margin:3px 0 0;font-size:13px;color:var(--fg-dim)}
+
+/* ---------- Görsel: telefon bildirimi ---------- */
+.phone{width:280px;margin:0 auto;background:#05070B;border:8px solid #1A1F29;border-radius:38px;
+  padding:56px 12px 26px;position:relative;
+  transform:perspective(900px) rotateY(-12deg) rotateX(4deg);box-shadow:0 50px 90px -40px #000}
+.phone::before{content:"";position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  width:82px;height:5px;border-radius:99px;background:#252B36}
+.notif{background:#171B22;border-radius:16px;padding:13px;
+  animation:drop linear both;animation-timeline:view(block);animation-range:cover 34% cover 52%}
+@keyframes drop{from{opacity:0;transform:translateY(-26px) scale(.96)}to{opacity:1;transform:none}}
+.nhead{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--fg-mute);margin-bottom:8px}
+.tg{width:15px;height:15px;border-radius:50%;background:#2AABEE}
+.notif h4{margin:0 0 7px;font-size:13.5px;font-weight:640;letter-spacing:-.01em}
+.mini{height:64px;border-radius:9px;background:linear-gradient(180deg,#101720,#0C1119);
+  border:1px solid #232936;margin-bottom:8px;position:relative;overflow:hidden}
+.mini svg{position:absolute;inset:0}
+.notif dl{margin:0;display:grid;grid-template-columns:auto auto;gap:3px 10px;font-size:11px}
+.notif dt{color:var(--fg-mute)}
+.notif dd{margin:0;font-family:var(--mono);text-align:right}
+.once{text-align:center;font-size:11px;color:var(--fg-mute);margin-top:14px}
+
+/* ---------- Kapanış ---------- */
+.end{min-height:70vh;display:grid;place-items:center;text-align:center;padding:60px 20px}
+.end h2{font-size:clamp(24px,3.4vw,36px);letter-spacing:-.03em;margin:0 0 10px;font-weight:650}
+.end p{color:var(--fg-dim);max-width:52ch;line-height:1.7;margin:0}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important}
+  .curtain{display:none}.overlay{opacity:1}.strack i,.progress i{transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress"><i></i></div>
+<div class="stage-label">sinyal hikayesi</div>
+
+<section class="hero">
+  <div class="mesh"></div>
+  <div>
+    <h1>Bir sinyal<br><span>nasıl doğar?</span></h1>
+    <p>Altı sembol. Dört dakika. Tek bildirim.</p>
+  </div>
+  <div class="scrollcue">↓ kaydır</div>
+</section>
+
+<!-- 1 -->
+<section class="scene">
+  <div class="sticky"><div class="inner">
+    <div class="copy">
+      <div class="step"><b>1</b> tarama</div>
+      <h2>Piyasa eşzamanlı taranır</h2>
+      <p>İzleme listesindeki her sembol paralel çekilir. Biri hata verirse tarama durmaz —
+      o sembol atlanır, diğerleri sürer.</p>
+    </div>
+    <div class="visual">
+      <div class="tickers">
+        <div class="tick">GARAN.IS<small>1h · 981 mum</small></div>
+        <div class="tick">ASELS.IS<small>1h · 981 mum</small></div>
+        <div class="tick">KCHOL.IS<small>1h · 964 mum</small></div>
+        <div class="tick">GOOGL<small>1h · 1002 mum</small></div>
+        <div class="tick">AMD<small>1h · 1002 mum</small></div>
+        <div class="tick">EREGL.IS<small>1h · 958 mum</small></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 2 -->
+<section class="scene">
+  <div class="sticky"><div class="inner">
+    <div class="copy">
+      <div class="step"><b>2</b> formasyon</div>
+      <h2>Grafik okunur,<br>formasyon aranır</h2>
+      <p>Mumlar bellekte görüntüye dönüşür ve pivot analizi ile taranır. Diske tek bir dosya
+      yazılmaz — grafik yalnızca RAM'de yaşar.</p>
+    </div>
+    <div class="visual">
+      <div class="chartbox">
+        <canvas id="c" width="820" height="270"></canvas>
+        <div class="overlay">
+          <div class="box"><b>yükselen üçgen · 0.83</b></div>
+        </div>
+        <div class="curtain"></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 3 -->
+<section class="scene">
+  <div class="sticky"><div class="inner">
+    <div class="copy">
+      <div class="step"><b>3</b> skorlama</div>
+      <h2>Üç kaynak<br>tek skora iner</h2>
+      <p>Formasyon güveni tek başına yetmez. İndikatör teyidi ve haber duyarlılığı yönle
+      hizalanır; ağırlıklı toplam 0–1 aralığına normalize edilir.</p>
+    </div>
+    <div class="visual">
+      <div class="scorebox">
+        <div class="sline"><span>Formasyon ×0.5</span>
+          <div class="strack"><i style="width:83%;background:var(--brand)"></i></div><b>0.83</b></div>
+        <div class="sline"><span>İndikatör ×0.2</span>
+          <div class="strack"><i style="width:71%;background:var(--long)"></i></div><b>+0.41</b></div>
+        <div class="sline"><span>Haber ×0.3</span>
+          <div class="strack"><i style="width:76%;background:var(--long)"></i></div><b>+0.52</b></div>
+        <div class="total">
+          <b>0.74</b>
+          <div><span>final skor</span><p>0.60 eşiğinin üzerinde — bildirim gönderilir</p></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 4 -->
+<section class="scene">
+  <div class="sticky"><div class="inner">
+    <div class="copy">
+      <div class="step"><b>4</b> bildirim</div>
+      <h2>Telefonda<br>tek satır</h2>
+      <p>Aynı sembol ve formasyon için dört saat boyunca ikinci bir bildirim gitmez.
+      Birincil kanal başarılıysa yedek kanal hiç denenmez.</p>
+    </div>
+    <div class="visual">
+      <div class="phone">
+        <div class="notif">
+          <div class="nhead"><span class="tg"></span> Command Center · şimdi</div>
+          <h4>📈 GARAN.IS — Yükselen Üçgen (LONG)</h4>
+          <div class="mini">
+            <svg viewBox="0 0 240 64" preserveAspectRatio="none">
+              <polyline points="0,48 24,44 48,46 72,38 96,40 120,31 144,33 168,24 192,26 216,15 240,10"
+                fill="none" stroke="#35D08A" stroke-width="2"/>
+              <polyline points="0,58 240,58" stroke="#232936" stroke-width="1"/>
+            </svg>
+          </div>
+          <dl>
+            <dt>Skor</dt><dd>0.74</dd>
+            <dt>Güven</dt><dd>%83</dd>
+            <dt>Fiyat</dt><dd>141.20</dd>
+          </dl>
+        </div>
+        <p class="once">tekrar bildirim yok · 4 sa cooldown</p>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<section class="end">
+  <div>
+    <h2>Hikaye biter, terminal başlar</h2>
+    <p>Bu akış yeni kullanıcıya sistemi bir kez anlatır. Günlük kullanımda kimse hikaye
+    okumak istemez — oradan sonrası Yön A'daki yoğun terminale devreder.</p>
+  </div>
+</section>
+
+<script>
+(function(){
+  const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,N=58,pad=14;
+  let s=11;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+  const bars=[];let px=100;
+  for(let i=0;i<N;i++){
+    const o=px,c=o+(rnd()-.40)*3+i/N*1.6;
+    bars.push({o,c,h:Math.max(o,c)+rnd()*1.5,l:Math.min(o,c)-rnd()*1.5});px=c;
+  }
+  const hi=Math.max(...bars.map(b=>b.h)),lo=Math.min(...bars.map(b=>b.l));
+  const y=v=>pad+(hi-v)/(hi-lo)*(H-pad*2),bw=(W-pad*2)/N;
+  ctx.strokeStyle='#1B212C';
+  for(let i=0;i<4;i++){const yy=pad+i*(H-pad*2)/3;ctx.beginPath();ctx.moveTo(pad,yy);ctx.lineTo(W-pad,yy);ctx.stroke();}
+  bars.forEach((b,i)=>{
+    const x=pad+i*bw+bw/2,up=b.c>=b.o;
+    ctx.strokeStyle=ctx.fillStyle=up?'#35D08A':'#FF5D6C';
+    ctx.beginPath();ctx.moveTo(x,y(b.h));ctx.lineTo(x,y(b.l));ctx.stroke();
+    ctx.fillRect(x-bw*.3,y(Math.max(b.o,b.c)),bw*.6,Math.max(1,Math.abs(y(b.o)-y(b.c))));
+  });
+})();
+</script>
+</body>
+</html>

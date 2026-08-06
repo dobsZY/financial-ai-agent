@@ -1,0 +1,300 @@
+<!-- @dsCard group="Yön A — Terminal" -->
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yön A — Terminal</title>
+<style>
+:root{
+  --bg:#0A0C10;--surface:#12151C;--raised:#181C25;--line:#232936;
+  --fg:#E6E9EF;--fg-dim:#98A2B8;--fg-mute:#5E6880;
+  --long:#35D08A;--short:#FF5D6C;--warn:#F5B54A;--brand:#5B8CFF;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font-family:"Inter","Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased}
+
+/* ---------- Üst bar: scroll ile inceliyor (scroll-driven) ---------- */
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:14px 20px;background:rgba(10,12,16,.82);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+  animation:shrink linear both;animation-timeline:scroll(root block);animation-range:0 160px}
+@keyframes shrink{to{padding-top:8px;padding-bottom:8px}}
+.brand{display:flex;align-items:center;gap:9px;font-weight:640;letter-spacing:-.02em}
+.spark{width:9px;height:9px;border-radius:50%;background:var(--long);
+  box-shadow:0 0 0 4px rgba(53,208,138,.14)}
+.top .sep{flex:1}
+.stat{font-size:12px;color:var(--fg-dim)}
+.stat b{color:var(--fg);font-family:var(--mono)}
+
+/* ---------- Düzen ---------- */
+.shell{display:grid;grid-template-columns:56px 1fr;min-height:100vh}
+.rail{position:sticky;top:57px;height:calc(100vh - 57px);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0;background:var(--surface)}
+.rail button{width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
+  color:var(--fg-mute);cursor:pointer;font-size:16px;transition:all .18s}
+.rail button:hover{color:var(--fg);background:var(--raised)}
+.rail button.on{color:var(--brand);background:rgba(91,140,255,.1);border-color:rgba(91,140,255,.28)}
+.main{padding:22px 24px 120px;max-width:1400px}
+h1{font-size:22px;letter-spacing:-.025em;margin:0 0 3px;font-weight:640}
+.lead{color:var(--fg-dim);font-size:13px;margin:0 0 22px}
+
+/* ---------- Yoğun sinyal tablosu ---------- */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.phead{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.phead h2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-mute);margin:0;font-weight:600}
+.pill{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--raised);color:var(--fg-dim);
+  border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-mute);text-align:left;
+  padding:8px 14px;font-weight:600;background:#0E1118;position:sticky;top:57px;z-index:5}
+td{padding:9px 14px;border-bottom:1px solid #1B212C}
+tbody tr{cursor:pointer;
+  /* satırlar görünüre girerken yerine oturur */
+  animation:rowin linear both;animation-timeline:view(block);animation-range:entry 0% entry 65%}
+@keyframes rowin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+tbody tr:hover{background:#151A23}
+tbody tr.sel{background:rgba(91,140,255,.07);box-shadow:inset 2px 0 0 var(--brand)}
+.tk{font-weight:620;letter-spacing:-.01em}
+.mono{font-family:var(--mono);font-size:12px}
+.dir{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:620;
+  padding:2px 7px;border-radius:6px}
+.long{color:var(--long);background:rgba(53,208,138,.1)}
+.short{color:var(--short);background:rgba(255,93,108,.1)}
+.score{display:flex;align-items:center;gap:8px}
+.track{width:56px;height:4px;border-radius:99px;background:#1E2531;overflow:hidden}
+.track i{display:block;height:100%;border-radius:99px}
+.muted{color:var(--fg-mute)}
+
+/* ---------- Grafik + bağlam: iki sütun ---------- */
+.cols{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-top:16px}
+@media(max-width:1080px){.cols{grid-template-columns:1fr}}
+canvas{display:block;width:100%;height:290px}
+.legend{display:flex;gap:16px;padding:10px 14px;font-size:11px;color:var(--fg-dim);
+  border-top:1px solid var(--line)}
+.legend b{color:var(--fg);font-family:var(--mono)}
+.news{padding:4px 0}
+.ni{padding:12px 14px;border-bottom:1px solid #1B212C}
+.ni:last-child{border-bottom:0}
+.nrow{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.src{font-size:10px;letter-spacing:.08em;padding:1px 6px;border-radius:5px;
+  background:rgba(91,140,255,.12);color:var(--brand);font-weight:640}
+.sent{font-size:11px;font-family:var(--mono)}
+.ni p{margin:0;font-size:12.5px;line-height:1.5}
+.ni ul{margin:7px 0 0;padding-left:16px;color:var(--fg-dim);font-size:11.5px;line-height:1.65}
+
+/* ---------- Odak modu: scroll ile 2D tablo -> 3D kart ---------- */
+.focus-zone{height:180vh;position:relative;margin-top:40px}
+.focus-sticky{position:sticky;top:110px;height:calc(100vh - 150px);display:flex;
+  align-items:center;justify-content:center;perspective:1200px}
+.focus-card{width:min(760px,92%);transform-style:preserve-3d;
+  animation:lift linear both;animation-timeline:view(block);animation-range:cover 8% cover 62%}
+@keyframes lift{
+  from{transform:perspective(1200px) rotateX(14deg) translateZ(-180px) scale(.9);opacity:.35}
+  to{transform:perspective(1200px) rotateX(0) translateZ(0) scale(1);opacity:1}
+}
+.fc-inner{background:var(--raised);border:1px solid #2A3140;border-radius:18px;padding:22px;
+  box-shadow:0 40px 90px -40px #000}
+.fc-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px}
+.fc-head h3{margin:0;font-size:26px;letter-spacing:-.03em;font-weight:650}
+.fc-head p{margin:2px 0 0;color:var(--fg-dim);font-size:13px}
+.big{margin-left:auto;text-align:right}
+.big b{font-size:34px;font-weight:650;letter-spacing:-.02em;display:block;line-height:1}
+.big span{font-size:11px;color:var(--fg-mute);letter-spacing:.1em;text-transform:uppercase}
+.fc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.metric{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px}
+.metric span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-mute)}
+.metric b{display:block;font-size:19px;margin-top:5px;font-weight:620;font-family:var(--mono)}
+.hint{text-align:center;color:var(--fg-mute);font-size:12px;margin-top:26px;
+  animation:fade linear both;animation-timeline:scroll(root block);animation-range:0 240px}
+@keyframes fade{to{opacity:0}}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .focus-card{transform:none;opacity:1}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="spark"></span> Command Center</div>
+  <span class="pill">BIST açık · 16:42</span>
+  <div class="sep"></div>
+  <span class="stat">Tarama <b>6</b></span>
+  <span class="stat">Sinyal <b>9</b></span>
+  <span class="stat">Bildirim <b>3</b></span>
+</header>
+
+<div class="shell">
+  <nav class="rail">
+    <button class="on" title="Sinyaller">◈</button>
+    <button title="İzleme listesi">☰</button>
+    <button title="Haberler">✉</button>
+    <button title="Sistem">◔</button>
+  </nav>
+
+  <main class="main">
+    <h1>Sinyaller</h1>
+    <p class="lead">Yoğunluk önce gelir: bir ekranda tüm açık sinyaller, tek satırda tüm karar bilgisi.</p>
+
+    <section class="panel">
+      <div class="phead">
+        <h2>Açık sinyaller</h2>
+        <span class="pill">skor ≥ 0.55</span>
+        <span class="pill">1h</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Sembol</th><th>Formasyon</th><th>Yön</th><th>Skor</th>
+          <th>Güven</th><th>Fiyat</th><th>Yaş</th><th>Bildirim</th>
+        </tr></thead>
+        <tbody>
+          <tr class="sel">
+            <td class="tk">GARAN.IS</td><td>Yükselen Üçgen</td>
+            <td><span class="dir long">▲ LONG</span></td>
+            <td><div class="score"><span class="mono">0.74</span><span class="track"><i style="width:74%;background:var(--long)"></i></span></div></td>
+            <td class="mono">%83</td><td class="mono">141.20</td><td class="mono muted">12dk</td>
+            <td class="mono" style="color:var(--long)">gönderildi</td>
+          </tr>
+          <tr>
+            <td class="tk">KCHOL.IS</td><td>Ters Omuz Baş Omuz</td>
+            <td><span class="dir long">▲ LONG</span></td>
+            <td><div class="score"><span class="mono">0.71</span><span class="track"><i style="width:71%;background:var(--long)"></i></span></div></td>
+            <td class="mono">%77</td><td class="mono">187.40</td><td class="mono muted">31dk</td>
+            <td class="mono" style="color:var(--long)">gönderildi</td>
+          </tr>
+          <tr>
+            <td class="tk">GOOGL</td><td>Çift Dip</td>
+            <td><span class="dir long">▲ LONG</span></td>
+            <td><div class="score"><span class="mono">0.70</span><span class="track"><i style="width:70%;background:var(--long)"></i></span></div></td>
+            <td class="mono">%79</td><td class="mono">208.10</td><td class="mono muted">33dk</td>
+            <td class="mono" style="color:var(--long)">gönderildi</td>
+          </tr>
+          <tr>
+            <td class="tk">ASELS.IS</td><td>Alçalan Üçgen</td>
+            <td><span class="dir short">▼ SHORT</span></td>
+            <td><div class="score"><span class="mono">0.64</span><span class="track"><i style="width:64%;background:var(--warn)"></i></span></div></td>
+            <td class="mono">%79</td><td class="mono">92.85</td><td class="mono muted">4sa</td>
+            <td class="mono muted">cooldown</td>
+          </tr>
+          <tr>
+            <td class="tk">EREGL.IS</td><td>Çift Tepe</td>
+            <td><span class="dir short">▼ SHORT</span></td>
+            <td><div class="score"><span class="mono">0.58</span><span class="track"><i style="width:58%;background:var(--warn)"></i></span></div></td>
+            <td class="mono">%65</td><td class="mono">28.94</td><td class="mono muted">35dk</td>
+            <td class="mono muted">eşik altı</td>
+          </tr>
+          <tr>
+            <td class="tk">AMD</td><td>Ters Omuz Baş Omuz</td>
+            <td><span class="dir long">▲ LONG</span></td>
+            <td><div class="score"><span class="mono">0.57</span><span class="track"><i style="width:57%;background:var(--warn)"></i></span></div></td>
+            <td class="mono">%63</td><td class="mono">164.55</td><td class="mono muted">36dk</td>
+            <td class="mono muted">eşik altı</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="cols">
+      <section class="panel">
+        <div class="phead"><h2>GARAN.IS · 1h</h2><span class="pill">yükselen üçgen</span></div>
+        <canvas id="c" width="900" height="290"></canvas>
+        <div class="legend">
+          <span>RSI <b>61.4</b></span><span>EMA50 <b>138.90</b></span>
+          <span>EMA200 <b>131.02</b></span><span>Hacim <b>1.8×</b></span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="phead"><h2>Bağlam</h2><span class="pill">son 24 sa</span></div>
+        <div class="news">
+          <div class="ni">
+            <div class="nrow"><span class="src">KAP</span><span class="tk mono">GARAN.IS</span>
+              <span class="sent" style="color:var(--long)">+0.52 olumlu</span></div>
+            <p>Temettü dağıtım kararı açıklandı</p>
+            <ul><li>Nakit temettü oranı beklentinin üzerinde</li>
+                <li>Sermaye yeterliliği güçlü seyrediyor</li></ul>
+          </div>
+          <div class="ni">
+            <div class="nrow"><span class="src">SEC</span><span class="tk mono">GOOGL</span>
+              <span class="sent" style="color:var(--fg-dim)">+0.05 nötr</span></div>
+            <p>8-K · Genel kurul oylama sonuçları</p>
+            <ul><li>Rutin bildirim, finansal etki beklenmiyor</li></ul>
+          </div>
+          <div class="ni">
+            <div class="nrow"><span class="src">SEC</span><span class="tk mono">NVDA</span>
+              <span class="sent" style="color:var(--short)">−0.18 olumsuz</span></div>
+            <p>8-K · Yönetim değişikliği</p>
+            <ul><li>Detay verilmedi, kısa vadeli etki belirsiz</li></ul>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <p class="hint">↓ kaydır — satır seçimi 3D odak kartına dönüşür</p>
+
+    <!-- Scroll ile 2D satırdan 3D odak kartına geçiş -->
+    <section class="focus-zone">
+      <div class="focus-sticky">
+        <div class="focus-card">
+          <div class="fc-inner">
+            <div class="fc-head">
+              <div>
+                <h3>GARAN.IS</h3>
+                <p>Yükselen Üçgen · LONG · 1h mum · 12 dakika önce</p>
+              </div>
+              <div class="big"><b style="color:var(--long)">0.74</b><span>final skor</span></div>
+            </div>
+            <div class="fc-grid">
+              <div class="metric"><span>Formasyon güveni</span><b>0.83</b></div>
+              <div class="metric"><span>İndikatör teyidi</span><b style="color:var(--long)">+0.41</b></div>
+              <div class="metric"><span>Haber duyarlılığı</span><b style="color:var(--long)">+0.52</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// Deterministik mum serisi — taslakta gerçek veri yerine sabit seed
+(function(){
+  const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,N=64,pad=14;
+  let s=7; const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+  const bars=[]; let px=100;
+  for(let i=0;i<N;i++){
+    const drift=i/N*16, o=px, c=o+(rnd()-.42)*3+drift*0.10;
+    const h=Math.max(o,c)+rnd()*1.6, l=Math.min(o,c)-rnd()*1.6;
+    bars.push({o,c,h,l}); px=c;
+  }
+  const hi=Math.max(...bars.map(b=>b.h)), lo=Math.min(...bars.map(b=>b.l));
+  const y=v=>pad+(hi-v)/(hi-lo)*(H-pad*2), bw=(W-pad*2)/N;
+
+  ctx.strokeStyle='#1B212C'; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){const yy=pad+i*(H-pad*2)/4;ctx.beginPath();ctx.moveTo(pad,yy);ctx.lineTo(W-pad,yy);ctx.stroke();}
+
+  bars.forEach((b,i)=>{
+    const x=pad+i*bw+bw/2, up=b.c>=b.o;
+    ctx.strokeStyle=ctx.fillStyle=up?'#35D08A':'#FF5D6C';
+    ctx.globalAlpha=.9;
+    ctx.beginPath();ctx.moveTo(x,y(b.h));ctx.lineTo(x,y(b.l));ctx.stroke();
+    ctx.fillRect(x-bw*.3,y(Math.max(b.o,b.c)),bw*.6,Math.max(1,Math.abs(y(b.o)-y(b.c))));
+  });
+  ctx.globalAlpha=1;
+
+  // Yükselen üçgen: yatay direnç + yükselen destek
+  ctx.setLineDash([5,4]); ctx.lineWidth=1.4; ctx.strokeStyle='#5B8CFF';
+  ctx.beginPath();ctx.moveTo(pad+bw*18,y(hi-1.2));ctx.lineTo(W-pad,y(hi-1.2));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(pad+bw*18,y(lo+1.5));ctx.lineTo(W-pad,y(hi-3.4));ctx.stroke();
+  ctx.setLineDash([]);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foundations — Financial Command Center</title>
+<style>
+:root{
+  /* Yüzeyler: terminal araştırmasından — koyu, düşük parlaklık, katmanlar arası fark küçük */
+  --bg:#0A0C10; --surface:#12151C; --raised:#181C25; --line:#232936;
+  /* Metin */
+  --fg:#E6E9EF; --fg-dim:#98A2B8; --fg-mute:#5E6880;
+  /* Anlam renkleri: YALNIZ yön ve skor için. Dekorasyonda kullanılmaz. */
+  --long:#35D08A; --short:#FF5D6C; --warn:#F5B54A; --brand:#5B8CFF;
+  /* Derinlik: 3D katman z-mesafeleri */
+  --z-back:-220px; --z-mid:-90px; --z-front:0px;
+  /* Hareket */
+  --ease-out:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.65,0,.35,1);
+  --dur-fast:180ms; --dur-med:420ms; --dur-slow:900ms;
+  --r-sm:8px; --r-md:14px; --r-lg:22px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  font-feature-settings:"tnum" 1,"cv05" 1;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:48px 28px 96px}
+h1{font-size:clamp(28px,4vw,42px);letter-spacing:-.03em;margin:0 0 6px;font-weight:650}
+.sub{color:var(--fg-dim);font-size:15px;margin:0 0 48px;max-width:62ch;line-height:1.6}
+h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-mute);
+   margin:52px 0 16px;font-weight:600}
+.grid{display:grid;gap:12px}
+.sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+      padding:12px;display:flex;flex-direction:column;gap:8px}
+.dot{height:52px;border-radius:var(--r-sm)}
+.chip b{font-size:13px;font-weight:600}
+.chip span{font-size:11px;color:var(--fg-mute);font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.note{font-size:12px;color:var(--fg-dim);line-height:1.65;margin-top:10px}
+
+/* Tipografi ölçeği */
+.type-row{display:flex;align-items:baseline;gap:20px;padding:12px 0;border-bottom:1px solid var(--line)}
+.type-row i{font-style:normal;color:var(--fg-mute);font-size:11px;width:120px;flex:none;
+            font-family:ui-monospace,Menlo,monospace}
+.d1{font-size:42px;letter-spacing:-.03em;font-weight:650}
+.d2{font-size:26px;letter-spacing:-.02em;font-weight:600}
+.d3{font-size:17px;font-weight:600}
+.body{font-size:14px}
+.cap{font-size:12px;color:var(--fg-dim)}
+.num{font-size:30px;font-weight:620;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+
+/* Derinlik katmanları */
+.depth{perspective:900px;height:230px;display:flex;align-items:center;justify-content:center}
+.stack{transform-style:preserve-3d;position:relative;width:320px;height:150px;
+       animation:turn 9s var(--ease-io) infinite alternate}
+@keyframes turn{from{transform:rotateY(-16deg) rotateX(6deg)}to{transform:rotateY(16deg) rotateX(2deg)}}
+.plane{position:absolute;inset:0;border-radius:var(--r-md);border:1px solid var(--line);
+       display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--fg-dim)}
+.p1{background:#0E1118;transform:translateZ(var(--z-back));opacity:.5}
+.p2{background:var(--surface);transform:translateZ(var(--z-mid));opacity:.8}
+.p3{background:var(--raised);transform:translateZ(var(--z-front));
+    box-shadow:0 24px 60px -20px #000,0 0 0 1px #2A3140 inset}
+
+/* Hareket örnekleri */
+.motion{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.m{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px}
+.bar{height:6px;background:#1E2531;border-radius:99px;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;width:40%;background:var(--brand);border-radius:99px}
+.m:nth-child(1) .bar i{animation:slide 1.8s var(--ease-out) infinite}
+.m:nth-child(2) .bar i{animation:slide 1.8s var(--ease-io) infinite}
+.m:nth-child(3) .bar i{animation:slide 1.8s linear infinite}
+@keyframes slide{0%{transform:translateX(-100%)}60%,100%{transform:translateX(250%)}}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--fg-mute);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tasarım Dili</h1>
+  <p class="sub">Üç yön taslağının ortak temeli. Renk, tipografi, derinlik ve hareket kararları burada
+  tek yerde tanımlı — hangi yön seçilirse seçilsin bu katman değişmez.</p>
+
+  <h2>Yüzeyler</h2>
+  <div class="sw">
+    <div class="chip"><div class="dot" style="background:#0A0C10;border:1px solid var(--line)"></div><b>Zemin</b><span>#0A0C10</span></div>
+    <div class="chip"><div class="dot" style="background:#12151C"></div><b>Yüzey</b><span>#12151C</span></div>
+    <div class="chip"><div class="dot" style="background:#181C25"></div><b>Yükseltilmiş</b><span>#181C25</span></div>
+    <div class="chip"><div class="dot" style="background:#232936"></div><b>Çizgi</b><span>#232936</span></div>
+  </div>
+  <p class="note">Katmanlar arası fark kasıtlı olarak küçük. Terminal arayüzlerinde ayrım parlaklıkla
+  değil, kenar çizgisi ve gölgeyle kuruluyor — böylece uzun bakışta göz yorulmuyor.</p>
+
+  <h2>Anlam renkleri</h2>
+  <div class="sw">
+    <div class="chip"><div class="dot" style="background:#35D08A"></div><b>LONG</b><span>#35D08A</span></div>
+    <div class="chip"><div class="dot" style="background:#FF5D6C"></div><b>SHORT</b><span>#FF5D6C</span></div>
+    <div class="chip"><div class="dot" style="background:#F5B54A"></div><b>Orta skor</b><span>#F5B54A</span></div>
+    <div class="chip"><div class="dot" style="background:#5B8CFF"></div><b>Marka / etkileşim</b><span>#5B8CFF</span></div>
+  </div>
+  <p class="note"><b>Kural:</b> yeşil ve kırmızı yalnızca yön bildirir. Buton, ikon, kenarlık gibi
+  dekoratif yerlerde kullanılmaz — aksi halde ekrandaki her şey "sinyal" gibi görünür ve gerçek
+  sinyaller kaybolur.</p>
+
+  <h2>Tipografi</h2>
+  <div class="grid">
+    <div class="type-row"><i>display / 42</i><span class="d1">GARAN.IS</span></div>
+    <div class="type-row"><i>başlık / 26</i><span class="d2">Yükselen Üçgen</span></div>
+    <div class="type-row"><i>alt başlık / 17</i><span class="d3">Sinyal ayrıntısı</span></div>
+    <div class="type-row"><i>gövde / 14</i><span class="body">İndikatör teyidi ve haber duyarlılığı skora dahil edildi.</span></div>
+    <div class="type-row"><i>etiket / 12</i><span class="cap">4 saat önce · 1h mum</span></div>
+    <div class="type-row"><i>sayı / tabular</i><span class="num">0.74&nbsp;&nbsp;141.20&nbsp;&nbsp;%83</span></div>
+  </div>
+  <p class="note">Sayılar <code>font-variant-numeric: tabular-nums</code> ile sabit genişlikte —
+  fiyat canlı güncellenirken rakamlar yatay olarak zıplamaz.</p>
+
+  <h2>Derinlik</h2>
+  <div class="depth">
+    <div class="stack">
+      <div class="plane p1">bağlam katmanı · −220px</div>
+      <div class="plane p2">grafik katmanı · −90px</div>
+      <div class="plane p3">sinyal katmanı · 0</div>
+    </div>
+  </div>
+  <p class="note">3D burada süs değil, <b>bilgi hiyerarşisi</b>: en yakın düzlem eyleme dönüşecek
+  sinyal, arkadakiler onu doğrulayan bağlam. Scroll ile kamera bu eksende ilerliyor.</p>
+
+  <h2>Hareket</h2>
+  <div class="motion">
+    <div class="m"><b class="d3">Giriş</b><p class="cap">ease-out · 420ms</p><div class="bar"><i></i></div></div>
+    <div class="m"><b class="d3">Sahne geçişi</b><p class="cap">ease-in-out · 900ms</p><div class="bar"><i></i></div></div>
+    <div class="m"><b class="d3">Scroll bağlı</b><p class="cap">linear · scroll konumu</p><div class="bar"><i></i></div></div>
+  </div>
+  <p class="note">Scroll'a bağlı animasyonlarda <b>daima linear</b> — hız kullanıcının parmağından
+  gelir, eğri eklemek geciklime hissi yaratır. Yalnızca <code>transform</code> ve
+  <code>opacity</code> animasyonu yapılır; ikisi de compositor thread'inde çalışır.</p>
+
+  <h2>Erişilebilirlik ve performans bütçesi</h2>
+  <table>
+    <tr><th>Kural</th><th>Değer</th></tr>
+    <tr><td>Gövde metni kontrastı</td><td>≥ 4.5:1 (#E6E9EF / #0A0C10 = 15.8:1)</td></tr>
+    <tr><td>Yalnız renge dayanmama</td><td>Yön ayrıca ok ikonu + metinle bildirilir</td></tr>
+    <tr><td><code>prefers-reduced-motion</code></td><td>3D ve scroll animasyonları kapanır, içerik statik kalır</td></tr>
+    <tr><td>İlk anlamlı boya</td><td>&lt; 1.5 sn (dış font/JS kütüphanesi yok)</td></tr>
+    <tr><td>Kare bütçesi</td><td>60 fps · scroll sırasında layout tetikleyen özellik yok</td></tr>
+  </table>
+</div>
+</body>
+</html>
