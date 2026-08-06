@@ -10,6 +10,7 @@ KAP/SEC bildirimlerini LLM ile özetleyen ve mobil bildirim gönderen finans asi
 
 ```
                     ┌──────────────────────────────────────────────┐
+
    APScheduler ───► │  core/pipeline.py — run_scan()               │
    (seans takvimi)  │                                              │
                     │  fetch ──► chart ──► analiz ──► skor ──► DB   │
@@ -26,7 +27,8 @@ KAP/SEC bildirimlerini LLM ile özetleyen ve mobil bildirim gönderen finans asi
 
    SQLite ◄── database/ (symbols, candles, signals, news_items, llm_summaries, job_runs)
       ▲
-      └── FastAPI (api/routes) ◄── Flet paneli (ui/) — UI yalnızca API'yi tüketir
+      └── FastAPI (api/routes) ──► web/ paneli (/app altında statik servis edilir)
+                                   UI yalnızca API'yi tüketir; iş mantığı taşımaz
 ```
 
 **Teknoloji:** FastAPI · APScheduler · SQLAlchemy 2.0 (async, SQLite) · yfinance ·
@@ -61,16 +63,32 @@ Anahtarlar yalnızca `.env`'de tutulur; `.env` git'e girmez (K-05).
 ## Çalıştırma
 
 ```powershell
-.\run.ps1          # API + scheduler        -> http://127.0.0.1:8000/health
-.\run.ps1 -All     # API'yi açar, paneli başlatır
-.\run.ps1 -Ui      # yalnız Flet paneli (API ayrı çalışmalı)
+.\run.ps1          # API + scheduler + web paneli   -> http://127.0.0.1:8000
 ```
 
-Betiksiz eşdeğeri: `python main.py` ve `flet run ui/main_app.py`.
+Betiksiz eşdeğeri: `python main.py`. Tek process hem API'yi hem paneli servis eder.
 
+- **Panel:** http://127.0.0.1:8000 (`/` → `/app/`)
 - API dokümantasyonu: http://127.0.0.1:8000/docs
-- Panel: dört görünüm — Sinyaller (mini grafikli kartlar), İzleme Listesi (CRUD),
-  Haberler (LLM özeti + sentiment rozeti), Sistem (`job_runs` sağlık tablosu)
+
+### Panel (`web/`)
+
+Saf HTML/CSS/JS — build adımı, Node bağımlılığı ve CORS ayarı yok. Dört görünüm:
+**Sinyaller** (master-detail: solda liste, sağda grafik + skor + haber + formasyon açıklaması),
+**İzleme Listesi** (ekle / duraklat / sil / tek sembol tara), **Haberler** (LLM özeti +
+sentiment rozeti), **Sistem** (sağlık kartları + `job_runs` tablosu).
+
+| Kısayol | İşlev |
+|---|---|
+| `Ctrl+K` | Komut paleti — sembol, formasyon, sayfa ve komut araması |
+| `j` / `k` | Listede aşağı / yukarı |
+| `r` | Yenile |
+| `Esc` | Palet ve pencereleri kapat |
+
+Açık/koyu tema sağ üstten değişir (tercih `localStorage`'da tutulur, grafikler de temaya uyar).
+Otomatik yenileme 30 saniyede bir, `⟳` düğmesiyle kapatılabilir.
+
+Eski Flet paneli `ui/` altında duruyor (`flet run ui/main_app.py`); artık birincil arayüz değil.
 
 ### Zamanlanmış işler
 

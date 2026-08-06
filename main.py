@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.routes import charts, health, news, patterns, signals, symbols
 from config.settings import get_settings
@@ -43,6 +46,16 @@ app.include_router(symbols.router)
 app.include_router(news.router)
 app.include_router(charts.router)
 app.include_router(patterns.router)
+
+# Web paneli ayni process'ten servis edilir: tek komut, CORS yok, ayni Docker imaji.
+WEB_DIR = Path(__file__).resolve().parent / "web"
+if WEB_DIR.is_dir():
+    app.mount("/app", StaticFiles(directory=WEB_DIR, html=True), name="web")
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    return RedirectResponse(url="/app/" if WEB_DIR.is_dir() else "/docs")
 
 
 if __name__ == "__main__":

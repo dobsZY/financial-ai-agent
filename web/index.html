@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="tr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Financial Command Center</title>
+<link rel="stylesheet" href="/app/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📈</text></svg>">
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="logo"><span class="dot" id="live-dot"></span><span class="lbl">Command Center</span></div>
+
+    <div class="search">
+      <span class="ic">⌕</span>
+      <input id="q" placeholder="Sembol, formasyon veya komut ara…" autocomplete="off">
+      <span class="kbd"><i>Ctrl</i><i>K</i></span>
+    </div>
+
+    <div class="sp"></div>
+    <div id="markets" class="markets"></div>
+    <button class="iconbtn" id="auto" title="Otomatik yenileme">⟳</button>
+    <button class="iconbtn" id="theme" title="Tema değiştir">◐</button>
+    <button class="primary" id="scan">Tara</button>
+  </header>
+
+  <nav class="side">
+    <h3 class="lbl">Çalışma alanı</h3>
+    <button class="nav" data-view="signals"><b>◈</b><span class="lbl">Sinyaller</span><span class="count" id="c-signals">–</span></button>
+    <button class="nav" data-view="watchlist"><b>☰</b><span class="lbl">İzleme listesi</span><span class="count" id="c-symbols">–</span></button>
+    <button class="nav" data-view="news"><b>✉</b><span class="lbl">Haberler</span><span class="count" id="c-news">–</span></button>
+    <button class="nav" data-view="system"><b>◔</b><span class="lbl">Sistem</span></button>
+
+    <h3 class="lbl">Hızlı filtreler</h3>
+    <button class="nav filter" data-filter="high"><b>★</b><span class="lbl">Yüksek skor</span></button>
+    <button class="nav filter" data-filter="long"><b>▲</b><span class="lbl">Yalnız LONG</span></button>
+    <button class="nav filter" data-filter="short"><b>▼</b><span class="lbl">Yalnız SHORT</span></button>
+    <button class="nav filter" data-filter="notified"><b>◉</b><span class="lbl">Bildirilenler</span></button>
+
+    <h3 class="lbl">Piyasa</h3>
+    <button class="nav filter" data-filter="bist"><b>₺</b><span class="lbl">BIST</span></button>
+    <button class="nav filter" data-filter="nasdaq"><b>$</b><span class="lbl">NASDAQ</span></button>
+  </nav>
+
+  <section class="work">
+    <div class="whead">
+      <div><h1 id="title">Sinyaller</h1><p id="subtitle">yükleniyor…</p></div>
+      <div class="seg" id="seg"></div>
+    </div>
+    <div class="list" id="main"></div>
+  </section>
+
+  <aside class="detail" id="detail"></aside>
+
+  <footer class="status">
+    <span id="st-scheduler">Scheduler <b>–</b></span>
+    <span id="st-jobs">İş <b>–</b></span>
+    <span class="sp"></span>
+    <span id="st-integrations"></span>
+    <span id="st-updated">–</span>
+  </footer>
+</div>
+
+<div class="overlay" id="ov">
+  <div class="palette">
+    <input id="pq" placeholder="Sembol, formasyon, sayfa veya komut…" autocomplete="off">
+    <div class="presults" id="pres"></div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-ov">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/app/app.js"></script>
+</body>
+</html>

@@ -64,11 +64,13 @@ async def get_chart(
     interval: Interval = Interval.H1,
     candles: int = Query(default=120, ge=20, le=500),
     width: int | None = Query(default=None, ge=160, le=1600),
-    height: int | None = Query(default=None, ge=120, le=1200),
+    # Alt sinir 60: liste satirlarindaki mini grafikler (sparkline) icin
+    height: int | None = Query(default=None, ge=60, le=1200),
     volume: bool = True,
+    theme: str = Query(default="dark", pattern="^(dark|light)$"),
 ) -> Response:
     """Sembolun mum grafigini PNG olarak dondurur; diske hicbir sey yazilmaz (K-02)."""
-    key = (ticker.strip().upper(), interval.value, candles, width, height, volume)
+    key = (ticker.strip().upper(), interval.value, candles, width, height, volume, theme)
     cached = _cache_get(key)
     if cached is not None:
         return Response(content=cached, media_type="image/png")
@@ -79,7 +81,7 @@ async def get_chart(
 
     try:
         array = await render_chart(
-            frame, width=width, height=height, candles=candles, volume=volume
+            frame, width=width, height=height, candles=candles, volume=volume, theme=theme
         )
         payload = to_png_bytes(array)
     except ChartRenderError as exc:

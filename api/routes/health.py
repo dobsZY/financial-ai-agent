@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from ai_modules.vision_model import model_info
 from config.settings import get_settings
+from core.market_hours import SESSIONS, is_market_open
 from core.scheduler import get_scheduler
 
 router = APIRouter(tags=["system"])
@@ -27,6 +28,7 @@ async def health() -> dict[str, object]:
             "pushover": settings.pushover_enabled,
             "telegram": settings.telegram_enabled,
         },
+        "markets": {market.value: is_market_open(market) for market in SESSIONS},
     }
 
 

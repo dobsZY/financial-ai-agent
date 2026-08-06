@@ -34,7 +34,20 @@ class ChartRenderError(RuntimeError):
     """Grafik uretilemedigi durumlarda firlatilir."""
 
 
-def _build_style() -> dict:
+def _build_style(theme: str = "dark") -> dict:
+    """Grafik stili. `light` varyanti web panelinin acik temasi icin (renkler koyulastirildi)."""
+    if theme == "light":
+        market_colors = mpf.make_marketcolors(
+            up="#0f9d63", down="#dc3545", edge="inherit", wick="inherit", volume="in"
+        )
+        return mpf.make_mpf_style(
+            base_mpf_style="classic",
+            marketcolors=market_colors,
+            gridstyle="",
+            facecolor="#ffffff",
+            figcolor="#ffffff",
+        )
+
     market_colors = mpf.make_marketcolors(
         up="#26a69a",
         down="#ef5350",
@@ -51,14 +64,16 @@ def _build_style() -> dict:
     )
 
 
-def _render_png_bytes(df: pd.DataFrame, width: int, height: int, volume: bool) -> bytes:
+def _render_png_bytes(
+    df: pd.DataFrame, width: int, height: int, volume: bool, theme: str = "dark"
+) -> bytes:
     """DataFrame -> PNG baytlari. Diske hicbir dosya yazilmaz (K-02)."""
     buffer = io.BytesIO()
     plot_df = df.rename(columns=_MPF_COLUMNS)
     mpf.plot(
         plot_df,
         type="candle",
-        style=_build_style(),
+        style=_build_style(theme),
         volume=volume,
         axisoff=True,
         tight_layout=True,
@@ -85,6 +100,7 @@ def render_chart_sync(
     height: int | None = None,
     candles: int = 120,
     volume: bool = True,
+    theme: str = "dark",
 ) -> np.ndarray:
     settings = get_settings()
     target_width = width or settings.chart_width
@@ -96,7 +112,7 @@ def render_chart_sync(
             f"{frame.symbol.yf_ticker}: grafik icin yetersiz mum ({len(df)} < {MIN_CANDLES})"
         )
 
-    png_bytes = _render_png_bytes(df, target_width, target_height, volume)
+    png_bytes = _render_png_bytes(df, target_width, target_height, volume, theme)
     return _to_bgr_array(png_bytes, target_width, target_height)
 
 
@@ -106,10 +122,11 @@ async def render_chart(
     height: int | None = None,
     candles: int = 120,
     volume: bool = True,
+    theme: str = "dark",
 ) -> np.ndarray:
     """matplotlib bloklayicidir; thread pool'a alinir (K-01)."""
     array = await asyncio.to_thread(
-        render_chart_sync, frame, width, height, candles, volume
+        render_chart_sync, frame, width, height, candles, volume, theme
     )
     logger.info(
         "chart.rendered",

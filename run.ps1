@@ -3,10 +3,10 @@
     Financial Command Center'i Windows'ta baslatir (ROADMAP 5.4).
 
 .EXAMPLE
-    .\run.ps1              # API + scheduler (varsayilan)
-    .\run.ps1 -Ui          # yalniz Flet paneli
-    .\run.ps1 -All         # API'yi ayri pencerede baslatip paneli acar
+    .\run.ps1              # API + scheduler + web paneli -> http://127.0.0.1:8000
     .\run.ps1 -Backtest    # backtest raporu yazdirir
+    .\run.ps1 -Ui          # eski Flet paneli (artik birincil arayuz degil)
+    .\run.ps1 -All         # API'yi ayri pencerede baslatip Flet panelini acar
 #>
 [CmdletBinding()]
 param(
@@ -51,6 +51,6 @@ if ($Ui) {
     exit $LASTEXITCODE
 }
 
-Write-Host "API + scheduler baslatiliyor -> http://127.0.0.1:8000/health" -ForegroundColor Cyan
+Write-Host "API + scheduler + panel baslatiliyor -> http://127.0.0.1:8000" -ForegroundColor Cyan
 & $python main.py
 exit $LASTEXITCODE
