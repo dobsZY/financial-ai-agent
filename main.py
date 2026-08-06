@@ -6,7 +6,7 @@ from typing import AsyncIterator
 import uvicorn
 from fastapi import FastAPI
 
-from api.routes import charts, health, news, signals, symbols
+from api.routes import charts, health, news, patterns, signals, symbols
 from config.settings import get_settings
 from core.logger import get_logger, setup_logging
 from core.scheduler import shutdown_scheduler, start_scheduler
@@ -42,6 +42,7 @@ app.include_router(signals.router)
 app.include_router(symbols.router)
 app.include_router(news.router)
 app.include_router(charts.router)
+app.include_router(patterns.router)
 
 
 if __name__ == "__main__":

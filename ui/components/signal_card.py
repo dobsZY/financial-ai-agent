@@ -28,10 +28,12 @@ class SignalCard(ft.Card):
         signal: dict[str, Any],
         client: ApiClient,
         on_open_chart: Callable[[dict[str, Any]], Coroutine[Any, Any, None]],
+        on_explain: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
     ) -> None:
         self.signal = signal
         self._client = client
         self._on_open_chart = on_open_chart
+        self._on_explain = on_explain
         self._thumb = ft.Container(
             content=ft.ProgressRing(width=18, height=18, stroke_width=2),
             width=THUMB_WIDTH,
@@ -68,7 +70,7 @@ class SignalCard(ft.Card):
 
         details = ft.Column(
             [
-                ft.Text(pattern_label(signal.get("pattern", "")), size=14),
+                self._pattern_row(),
                 ft.Row(
                     [
                         chip(f"Skor {score:.2f}" if score is not None else "Skor -", score_color(score)),
@@ -117,6 +119,28 @@ class SignalCard(ft.Card):
                 spacing=10,
             ),
             padding=14,
+        )
+
+    def _pattern_row(self) -> ft.Control:
+        """Formasyon adi + 'bu ne demek?' dugmesi (aciklama diyalogunu acar)."""
+        label = ft.Text(pattern_label(self.signal.get("pattern", "")), size=14)
+        if self._on_explain is None:
+            return label
+
+        return ft.Row(
+            [
+                label,
+                ft.IconButton(
+                    ft.Icons.HELP_OUTLINE,
+                    icon_size=16,
+                    tooltip="Bu formasyon ne anlama geliyor?",
+                    style=ft.ButtonStyle(padding=2),
+                    on_click=lambda _: self.page.run_task(self._on_explain, self.signal),
+                ),
+            ],
+            spacing=2,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
     def _notified_badge(self) -> ft.Control:

@@ -61,6 +61,20 @@ class ApiClient:
     async def news(self, limit: int = 50, ticker: str | None = None) -> list[dict[str, Any]]:
         return await self._get_json("/news", limit=limit, ticker=ticker)
 
+    async def pattern_info(self, pattern: str) -> dict[str, Any] | None:
+        """Formasyon aciklamasi; bilinmeyen formasyonda None (UI akisi durmaz)."""
+        try:
+            return await self._get_json(f"/patterns/{pattern}")
+        except ApiError as exc:
+            logger.warning("ui.pattern_info_unavailable", pattern=pattern, error=str(exc))
+            return None
+
+    async def pattern_notes(self) -> dict[str, str]:
+        try:
+            return await self._get_json("/patterns/notes")
+        except ApiError:
+            return {}
+
     async def jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         return await self._get_json("/jobs", limit=limit)
 

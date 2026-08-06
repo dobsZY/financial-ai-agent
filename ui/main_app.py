@@ -24,6 +24,7 @@ from ui.components.common import (
     section_title,
     to_base64,
 )
+from ui.components import pattern_sheet
 from ui.components.news_card import NewsCard
 from ui.components.signal_card import SignalCard
 
@@ -213,7 +214,10 @@ class Dashboard:
             self._set_body([toolbar, empty_state("Henuz sinyal yok. Bir tarama baslat.")])
             return
 
-        cards = [SignalCard(signal, self.client, self._open_chart) for signal in signals]
+        cards = [
+            SignalCard(signal, self.client, self._open_chart, self._explain_pattern)
+            for signal in signals
+        ]
         grid = ft.ResponsiveRow(
             [ft.Container(card, col={"sm": 12, "lg": 6}) for card in cards],
             run_spacing=10,
@@ -246,6 +250,19 @@ class Dashboard:
             else ft.Text("Grafik uretilemedi (veri yok).")
         )
         image_area.update()
+
+    async def _explain_pattern(self, signal: dict[str, Any]) -> None:
+        """Formasyon sozlugunu acar: ne demek, nasil teyit edilir, nerede gecersiz."""
+        pattern = signal.get("pattern", "")
+        info = await self.client.pattern_info(pattern)
+        if info is None:
+            self.page.open(pattern_sheet.unavailable_dialog(pattern, self.page.close))
+            return
+
+        notes = await self.client.pattern_notes()
+        self.page.open(
+            pattern_sheet.build_dialog(info, notes, signal.get("ticker"), self.page.close)
+        )
 
     async def _trigger_scan(self, tickers: list[str] | None = None) -> None:
         try:

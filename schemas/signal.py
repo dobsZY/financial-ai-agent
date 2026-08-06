@@ -88,6 +88,28 @@ class SignalCandidate(BaseModel):
         return self.detection.resolved_direction
 
 
+class PatternInfo(BaseModel):
+    """Formasyonun kullaniciya gosterilen aciklamasi (sozluk kaydi)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    pattern: Pattern
+    label: str
+    direction: Direction
+    family: str = Field(description="donus (trend donusu) veya devam (trend devami)")
+    summary: str
+    forms: str
+    implication: str
+    confirmation: str
+    invalidation: str
+    target: str
+    pitfalls: str
+
+    @property
+    def direction_text(self) -> str:
+        return "yukari" if self.direction is Direction.LONG else "asagi"
+
+
 class SignalRead(BaseModel):
     """API cikti sozlesmesi: kaydedilmis sinyal + sembol kodu."""
 

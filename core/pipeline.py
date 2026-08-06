@@ -12,6 +12,7 @@ from core.chart_factory import render_chart, to_png_bytes
 from core.data_fetcher import fetch_many, watchlist_from_settings
 from core.logger import get_logger
 from core.market_hours import filter_open_tickers
+from core.pattern_glossary import short_meaning
 from core.scoring import bucket_timestamp, compute_final_score, cooldown_cutoff, should_notify
 from core.indicators import trend_confirmation
 from database import db_manager
@@ -83,7 +84,9 @@ def _build_notification(
     emoji = _DIRECTION_EMOJI.get(direction, "")
     title = f"{emoji} {candidate.ticker} - {detection.pattern.value} ({direction})"
 
+    meaning = short_meaning(detection.pattern)
     body_lines = [
+        *([meaning, ""] if meaning else []),
         f"Skor: {candidate.final_score:.2f} | Guven: {detection.confidence:.2f}",
         f"Fiyat: {candidate.price:.2f}" if candidate.price is not None else "Fiyat: yok",
         f"Indikator teyidi: {candidate.indicator_score:+.2f}",

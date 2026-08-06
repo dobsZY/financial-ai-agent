@@ -93,6 +93,7 @@ Hafta sonu ve sabit tarihli resmî tatiller atlanır (`core/market_hours.py`).
 | `GET /symbols` + `POST` / `PATCH` / `DELETE` | İzleme listesi CRUD |
 | `GET /news`, `POST /news/summarize` | Haberler + LLM özetleri; kota kesintisinde özetsiz kalanları tamamlama |
 | `GET /charts/{ticker}` | Mum grafiği (PNG, RAM'de üretilir) |
+| `GET /patterns`, `GET /patterns/{pattern}` | Formasyon sözlüğü: ne demek, nasıl teyit edilir, nerede geçersiz olur |
 | `GET /jobs` | Son iş çalıştırmaları |
 
 ## Backtest
@@ -142,7 +143,7 @@ kendiliğinden etkinleşir; sürüm ve metrikler `GET /system/model` ile görül
 ## Geliştirme
 
 ```powershell
-pytest                       # 143 test
+pytest                       # 169 test
 pytest --cov                 # kapsam (eşik %70, güncel %83)
 ruff check .
 mypy --ignore-missing-imports .
