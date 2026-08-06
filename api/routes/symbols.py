@@ -32,12 +32,12 @@ async def update_symbol(ticker: str, payload: SymbolUpdate) -> SymbolRead:
         ticker, is_active=payload.is_active, interval=payload.interval, name=payload.name
     )
     if symbol is None:
-        raise HTTPException(status_code=404, detail="Sembol bulunamadi")
+        raise HTTPException(status_code=404, detail="Sembol bulunamadı")
     return SymbolRead.model_validate(symbol)
 
 
 @router.delete("/{ticker}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_symbol(ticker: str) -> Response:
     if not await db_manager.delete_symbol(ticker):
-        raise HTTPException(status_code=404, detail="Sembol bulunamadi")
+        raise HTTPException(status_code=404, detail="Sembol bulunamadı")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

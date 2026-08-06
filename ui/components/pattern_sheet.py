@@ -6,16 +6,16 @@ import flet as ft
 
 from ui.components.common import chip, direction_color, direction_icon
 
-FAMILY_LABELS = {"donus": "Trend donusu", "devam": "Trend devami"}
+FAMILY_LABELS = {"dönüş": "Trend dönüşü", "devam": "Trend devamı"}
 
 # Aciklama bolumleri: (anahtar, baslik, ikon)
 SECTIONS: tuple[tuple[str, str, str], ...] = (
-    ("forms", "Nasil olusur", ft.Icons.TIMELINE),
+    ("forms", "Nasıl oluşur", ft.Icons.TIMELINE),
     ("implication", "Ne anlama gelir", ft.Icons.PSYCHOLOGY_ALT),
-    ("confirmation", "Teyit kosulu", ft.Icons.CHECK_CIRCLE_OUTLINE),
-    ("invalidation", "Nerede gecersiz olur", ft.Icons.CANCEL_OUTLINED),
-    ("target", "Hedef hesabi", ft.Icons.FLAG_OUTLINED),
-    ("pitfalls", "Sik yapilan hata", ft.Icons.WARNING_AMBER_ROUNDED),
+    ("confirmation", "Teyit koşulu", ft.Icons.CHECK_CIRCLE_OUTLINE),
+    ("invalidation", "Nerede geçersiz olur", ft.Icons.CANCEL_OUTLINED),
+    ("target", "Hedef hesabı", ft.Icons.FLAG_OUTLINED),
+    ("pitfalls", "Sık yapılan hata", ft.Icons.WARNING_AMBER_ROUNDED),
 )
 
 SECTION_COLORS = {
@@ -63,7 +63,7 @@ def build_header(info: dict[str, Any], ticker: str | None = None) -> ft.Control:
             ft.Row(
                 [
                     chip(
-                        f"Beklenen yon: {'YUKARI' if direction == 'LONG' else 'ASAGI'}",
+                        f"Beklenen yön: {'YUKARI' if direction == 'LONG' else 'AŞAĞI'}",
                         direction_color(direction),
                     ),
                     chip(family, ft.Colors.BLUE_GREY_300),
@@ -125,8 +125,8 @@ def build_dialog(
 
 def unavailable_dialog(pattern: str, on_close) -> ft.AlertDialog:
     dialog = ft.AlertDialog(
-        title=ft.Text("Aciklama bulunamadi"),
-        content=ft.Text(f"'{pattern}' formasyonu icin sozlukte kayit yok."),
+        title=ft.Text("Açıklama bulunamadı"),
+        content=ft.Text(f"'{pattern}' formasyonu için sözlükte kayıt yok."),
     )
     dialog.actions = [ft.TextButton("Kapat", on_click=lambda _: on_close(dialog))]
     return dialog

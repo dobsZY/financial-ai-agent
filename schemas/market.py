@@ -96,6 +96,26 @@ class SymbolRead(BaseModel):
     created_at: datetime
 
 
+class QuoteRead(BaseModel):
+    """Canlı fiyat anlık görüntüsü (panelin canlı takip görünümü için)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ticker: str
+    market: str
+    interval: str
+    price: float
+    previous_close: float
+    change: float
+    change_pct: float
+    high: float
+    low: float
+    volume: float
+    last_candle_ts: datetime
+    is_stale: bool
+    indicators: dict[str, float | None] = {}
+
+
 class SymbolCreate(BaseModel):
     ticker: str
     interval: Interval = Interval.H1

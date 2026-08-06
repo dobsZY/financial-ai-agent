@@ -40,6 +40,16 @@ def _cache_put(key: tuple, payload: bytes) -> None:
     _cache[key] = (time.monotonic(), payload)
 
 
+async def _fetch_live(ticker: str, interval: Interval) -> OHLCVFrame | None:
+    """Canli takip: onbellek ve DB atlanir, veri kaynaktan taze cekilir."""
+    try:
+        frames = await fetch_many([SymbolConfig.from_ticker(ticker, interval=interval)])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("charts.live_fetch_failed", ticker=ticker, error=str(exc))
+        return None
+    return next(iter(frames.values()), None)
+
+
 async def _load_frame(ticker: str, interval: Interval, candles: int) -> OHLCVFrame | None:
     """Once DB'deki mumlar; yoksa canli cekim (K-03: hata yutulur)."""
     frame = await db_manager.load_frame(ticker, interval=interval, limit=max(candles * 2, 200))
@@ -68,16 +78,18 @@ async def get_chart(
     height: int | None = Query(default=None, ge=60, le=1200),
     volume: bool = True,
     theme: str = Query(default="dark", pattern="^(dark|light)$"),
+    live: bool = Query(default=False, description="Onbellegi ve DB'yi atla, kaynaktan taze cek"),
 ) -> Response:
     """Sembolun mum grafigini PNG olarak dondurur; diske hicbir sey yazilmaz (K-02)."""
     key = (ticker.strip().upper(), interval.value, candles, width, height, volume, theme)
-    cached = _cache_get(key)
-    if cached is not None:
-        return Response(content=cached, media_type="image/png")
+    if not live:
+        cached = _cache_get(key)
+        if cached is not None:
+            return Response(content=cached, media_type="image/png")
 
-    frame = await _load_frame(ticker, interval, candles)
+    frame = await _fetch_live(ticker, interval) if live else await _load_frame(ticker, interval, candles)
     if frame is None or frame.is_empty:
-        raise HTTPException(status_code=404, detail="Sembol icin veri bulunamadi")
+        raise HTTPException(status_code=404, detail="Sembol için veri bulunamadı")
 
     try:
         array = await render_chart(
@@ -86,7 +98,7 @@ async def get_chart(
         payload = to_png_bytes(array)
     except ChartRenderError as exc:
         logger.warning("charts.render_failed", ticker=ticker, error=str(exc))
-        raise HTTPException(status_code=500, detail="Grafik uretilemedi") from exc
+        raise HTTPException(status_code=500, detail="Grafik üretilemedi") from exc
 
     _cache_put(key, payload)
     return Response(content=payload, media_type="image/png")

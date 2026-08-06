@@ -1,12 +1,12 @@
-"""Formasyon sozlugu: her formasyonun ne anlama geldigi, nasil teyit edildigi ve nerede gecersiz oldugu.
+"""Formasyon sözlüğü: her formasyonun ne anlama geldiği, nasıl teyit edildiği ve nerede geçersiz olduğu.
 
-Kullanici bir sinyale tikladiginda gosterilir. Metinler klasik teknik analiz
-tanimlaridir; **tahmin degil, kosullu beklentidir**.
+Kullanıcı bir sinyale tıkladığında gösterilir. Metinler klasik teknik analiz
+tanımlarıdır; **tahmin değil, koşullu beklentidir**.
 
-ONEMLI: `ai_modules/pattern_rules.py` formasyonun **sekline** bakar; kirilimin
-gerceklestigini dogrulamaz. Yani sistem "formasyon olustu" der, "hareket basladi"
-demez. Her kayittaki `confirmation` alani, kullanicinin kendi gozuyle aramasi
-gereken teyidi anlatir.
+ÖNEMLİ: `ai_modules/pattern_rules.py` formasyonun **şekline** bakar; kırılımın
+gerçekleştiğini doğrulamaz. Yani sistem "formasyon oluştu" der, "hareket başladı"
+demez. Her kayıttaki `confirmation` alanı, kullanıcının kendi gözüyle araması
+gereken teyidi anlatır.
 """
 
 from __future__ import annotations
@@ -14,204 +14,204 @@ from __future__ import annotations
 from schemas.signal import Direction, Pattern, PatternInfo
 
 DISCLAIMER = (
-    "Bu aciklama egitim amaclidir, yatirim tavsiyesi degildir. Formasyonlar garanti "
-    "vermez; teyit gelmeden yon degistirebilir ve sik sik basarisiz olur."
+    "Bu açıklama eğitim amaçlıdır, yatırım tavsiyesi değildir. Formasyonlar garanti "
+    "vermez; teyit gelmeden yön değiştirebilir ve sık sık başarısız olur."
 )
 
-# Sistemin tespit ettigi sey ile kullanicinin beklemesi gereken sey arasindaki fark
+# Sistemin tespit ettiği şey ile kullanıcının beklemesi gereken şey arasındaki fark
 DETECTION_CAVEAT = (
-    "Sistem formasyonun **seklini** tespit etti; kirilimin gerceklestigini dogrulamadi. "
-    "Teyit kosulu saglanmadan formasyon henuz calismis sayilmaz."
+    "Sistem formasyonun şeklini tespit etti; kırılımın gerçekleştiğini doğrulamadı. "
+    "Teyit koşulu sağlanmadan formasyon henüz çalışmış sayılmaz."
 )
 
 _GLOSSARY: dict[Pattern, PatternInfo] = {
     Pattern.DOUBLE_TOP: PatternInfo(
         pattern=Pattern.DOUBLE_TOP,
-        label="Cift Tepe",
+        label="Çift Tepe",
         direction=Direction.SHORT,
-        family="donus",
-        summary="Yukselis trendi ayni seviyede iki kez reddedildi; satici baskisi belirginlesiyor.",
+        family="dönüş",
+        summary="Yükseliş trendi aynı seviyede iki kez reddedildi; satıcı baskısı belirginleşiyor.",
         forms=(
-            "Fiyat bir zirveye cikar, geri cekilir, tekrar ayni seviyeye yukselir ama "
-            "gecemez. Iki tepe birbirine yakin (sistemde %3 tolerans), aralarindaki "
-            "dip belirgin (en az %3 derinlik)."
+            "Fiyat bir zirveye çıkar, geri çekilir, tekrar aynı seviyeye yükselir ama "
+            "geçemez. İki tepe birbirine yakındır (sistemde %3 tolerans), aralarındaki "
+            "dip belirgindir (en az %3 derinlik)."
         ),
         implication=(
-            "Alicilar ayni direnci iki kez kiramadi. Klasik beklenti asagi yon: iki tepe "
-            "arasindaki dip (boyun cizgisi) kirilirsa dusus surebilir."
+            "Alıcılar aynı direnci iki kez kıramadı. Klasik beklenti aşağı yön: iki tepe "
+            "arasındaki dip (boyun çizgisi) kırılırsa düşüş sürebilir."
         ),
         confirmation=(
-            "Fiyatin iki tepe arasindaki dip seviyesinin ALTINDA kapanmasi. "
-            "Kirilima hacim artisi eslik ederse guvenilirlik artar."
+            "Fiyatın iki tepe arasındaki dip seviyesinin ALTINDA kapanması. "
+            "Kırılıma hacim artışı eşlik ederse güvenilirlik artar."
         ),
         invalidation=(
-            "Fiyat tepe seviyesinin uzerinde kapanirsa formasyon gecersizdir; "
-            "bu genelde yukselisin devami anlamina gelir."
+            "Fiyat tepe seviyesinin üzerinde kapanırsa formasyon geçersizdir; "
+            "bu genelde yükselişin devamı anlamına gelir."
         ),
         target=(
-            "Olcum kurali: tepe ile boyun cizgisi arasindaki mesafe, kirilim noktasindan "
-            "asagi dogru projekte edilir."
+            "Ölçüm kuralı: tepe ile boyun çizgisi arasındaki mesafe, kırılım noktasından "
+            "aşağı doğru projekte edilir."
         ),
         pitfalls=(
-            "En sik hata, ikinci tepe olustugu anda satmaktir. Boyun cizgisi kirilmadan "
-            "formasyon tamamlanmis sayilmaz; yatay seyir aylarca surebilir."
+            "En sık hata, ikinci tepe oluştuğu anda satmaktır. Boyun çizgisi kırılmadan "
+            "formasyon tamamlanmış sayılmaz; yatay seyir aylarca sürebilir."
         ),
     ),
     Pattern.DOUBLE_BOTTOM: PatternInfo(
         pattern=Pattern.DOUBLE_BOTTOM,
-        label="Cift Dip",
+        label="Çift Dip",
         direction=Direction.LONG,
-        family="donus",
-        summary="Dusus ayni seviyede iki kez durduruldu; alici ilgisi olusuyor.",
+        family="dönüş",
+        summary="Düşüş aynı seviyede iki kez durduruldu; alıcı ilgisi oluşuyor.",
         forms=(
-            "Fiyat bir dibe iner, toparlanir, tekrar ayni seviyeye geriler ama altina "
-            "inmez. Iki dip birbirine yakin, aralarindaki tepe belirgin."
+            "Fiyat bir dibe iner, toparlanır, tekrar aynı seviyeye geriler ama altına "
+            "inmez. İki dip birbirine yakın, aralarındaki tepe belirgindir."
         ),
         implication=(
-            "Satis baskisi ayni seviyede iki kez emildi. Klasik beklenti yukari yon: "
-            "iki dip arasindaki tepe (boyun cizgisi) asilirsa yukselis surebilir."
+            "Satış baskısı aynı seviyede iki kez emildi. Klasik beklenti yukarı yön: "
+            "iki dip arasındaki tepe (boyun çizgisi) aşılırsa yükseliş sürebilir."
         ),
         confirmation=(
-            "Fiyatin iki dip arasindaki tepe seviyesinin USTUNDE kapanmasi; "
-            "kirilimda hacim artisi tercih edilir."
+            "Fiyatın iki dip arasındaki tepe seviyesinin ÜSTÜNDE kapanması; "
+            "kırılımda hacim artışı tercih edilir."
         ),
-        invalidation="Fiyat dip seviyesinin altinda kapanirsa formasyon gecersizdir.",
-        target="Dip ile boyun cizgisi arasindaki mesafe, kirilimdan yukari projekte edilir.",
+        invalidation="Fiyat dip seviyesinin altında kapanırsa formasyon geçersizdir.",
+        target="Dip ile boyun çizgisi arasındaki mesafe, kırılımdan yukarı projekte edilir.",
         pitfalls=(
-            "Dusen bicak yakalama riski: dip henuz test edilmemisken alim yapmak. "
-            "Boyun cizgisi kirilimi beklenmezse ucuncu bir dip gelebilir."
+            "Düşen bıçak yakalama riski: dip henüz test edilmemişken alım yapmak. "
+            "Boyun çizgisi kırılımı beklenmezse üçüncü bir dip gelebilir."
         ),
     ),
     Pattern.HEAD_SHOULDERS: PatternInfo(
         pattern=Pattern.HEAD_SHOULDERS,
-        label="Omuz Bas Omuz",
+        label="Omuz Baş Omuz",
         direction=Direction.SHORT,
-        family="donus",
-        summary="Yukselisin gucu tukeniyor: her tepe bir oncekini asamiyor.",
+        family="dönüş",
+        summary="Yükselişin gücü tükeniyor: her tepe bir öncekini aşamıyor.",
         forms=(
-            "Uc tepe olusur; ortadaki (bas) en yuksek, yanlardakiler (omuzlar) birbirine "
-            "yakin ve daha alcak. Iki dibi birlestiren cizgi boyun cizgisidir."
+            "Üç tepe oluşur; ortadaki (baş) en yüksek, yanlardakiler (omuzlar) birbirine "
+            "yakın ve daha alçaktır. İki dibi birleştiren çizgi boyun çizgisidir."
         ),
         implication=(
-            "Trendin ivmesi kayboldu; alicilar son yuksegi tekrarlayamiyor. "
-            "Klasik beklenti asagi yon."
+            "Trendin ivmesi kayboldu; alıcılar son yükseği tekrarlayamıyor. "
+            "Klasik beklenti aşağı yön."
         ),
         confirmation=(
-            "Boyun cizgisinin ALTINDA kapanis. Kirilim sonrasi fiyatin boyun cizgisini "
-            "asagidan test edip reddedilmesi (geri donus) ek teyit sayilir."
+            "Boyun çizgisinin ALTINDA kapanış. Kırılım sonrası fiyatın boyun çizgisini "
+            "aşağıdan test edip reddedilmesi (geri dönüş) ek teyit sayılır."
         ),
-        invalidation="Sag omuz basi asarsa formasyon bozulur.",
-        target="Bas ile boyun cizgisi arasindaki dikey mesafe, kirilimdan asagi projekte edilir.",
+        invalidation="Sağ omuz başı aşarsa formasyon bozulur.",
+        target="Baş ile boyun çizgisi arasındaki dikey mesafe, kırılımdan aşağı projekte edilir.",
         pitfalls=(
-            "Boyun cizgisi her zaman yatay degildir; egimli boyun cizgilerinde kirilim "
-            "seviyesi tartismalidir ve yanlis sinyal orani artar."
+            "Boyun çizgisi her zaman yatay değildir; eğimli boyun çizgilerinde kırılım "
+            "seviyesi tartışmalıdır ve yanlış sinyal oranı artar."
         ),
     ),
     Pattern.INV_HEAD_SHOULDERS: PatternInfo(
         pattern=Pattern.INV_HEAD_SHOULDERS,
-        label="Ters Omuz Bas Omuz",
+        label="Ters Omuz Baş Omuz",
         direction=Direction.LONG,
-        family="donus",
-        summary="Dususun gucu tukeniyor: her dip bir oncekinden daha sig.",
+        family="dönüş",
+        summary="Düşüşün gücü tükeniyor: her dip bir öncekinden daha sığ.",
         forms=(
-            "Uc dip olusur; ortadaki (bas) en derin, yanlardakiler daha sig ve birbirine "
-            "yakin. Iki tepeyi birlestiren cizgi boyun cizgisidir."
+            "Üç dip oluşur; ortadaki (baş) en derin, yanlardakiler daha sığ ve birbirine "
+            "yakındır. İki tepeyi birleştiren çizgi boyun çizgisidir."
         ),
-        implication="Satis baskisi zayifliyor. Klasik beklenti yukari yon.",
+        implication="Satış baskısı zayıflıyor. Klasik beklenti yukarı yön.",
         confirmation=(
-            "Boyun cizgisinin USTUNDE kapanis; kirilimda hacim artisi guvenilirligi yukseltir."
+            "Boyun çizgisinin ÜSTÜNDE kapanış; kırılımda hacim artışı güvenilirliği yükseltir."
         ),
-        invalidation="Sag omuz basin altina inerse formasyon bozulur.",
-        target="Bas ile boyun cizgisi arasindaki mesafe, kirilimdan yukari projekte edilir.",
+        invalidation="Sağ omuz başın altına inerse formasyon bozulur.",
+        target="Baş ile boyun çizgisi arasındaki mesafe, kırılımdan yukarı projekte edilir.",
         pitfalls=(
-            "Dusus trendinin ortasinda benzer sekiller sik gorulur; trendin uzun sureli "
-            "oldugu ve hacmin daraldigi durumlarda daha anlamlidir."
+            "Düşüş trendinin ortasında benzer şekiller sık görülür; trendin uzun süreli "
+            "olduğu ve hacmin daraldığı durumlarda daha anlamlıdır."
         ),
     ),
     Pattern.ASC_TRIANGLE: PatternInfo(
         pattern=Pattern.ASC_TRIANGLE,
-        label="Yukselen Ucgen",
+        label="Yükselen Üçgen",
         direction=Direction.LONG,
         family="devam",
-        summary="Direnc sabit, dipler yukseliyor: alicilar her seferinde daha erken giriyor.",
+        summary="Direnç sabit, dipler yükseliyor: alıcılar her seferinde daha erken giriyor.",
         forms=(
-            "Ustte yatay bir direnc seviyesi, altta yukselen bir destek cizgisi. "
-            "Fiyat sikisarak ucgenin ucuna dogru ilerler."
+            "Üstte yatay bir direnç seviyesi, altta yükselen bir destek çizgisi vardır. "
+            "Fiyat sıkışarak üçgenin ucuna doğru ilerler."
         ),
         implication=(
-            "Alicilar sabirsizlaniyor, saticilar ayni seviyede sabit. Sikisma cozuldugunde "
-            "klasik beklenti yukari yon."
+            "Alıcılar sabırsızlanıyor, satıcılar aynı seviyede sabit. Sıkışma çözüldüğünde "
+            "klasik beklenti yukarı yön."
         ),
-        confirmation="Yatay direncin USTUNDE kapanis; hacim artisi beklenir.",
-        invalidation="Yukselen destek cizgisinin altina sarkma formasyonu bozar.",
-        target="Ucgenin en genis yerindeki dikey mesafe, kirilimdan yukari projekte edilir.",
+        confirmation="Yatay direncin ÜSTÜNDE kapanış; hacim artışı beklenir.",
+        invalidation="Yükselen destek çizgisinin altına sarkma formasyonu bozar.",
+        target="Üçgenin en geniş yerindeki dikey mesafe, kırılımdan yukarı projekte edilir.",
         pitfalls=(
-            "Ucgenin ucuna cok yaklasmis kirilimlar zayiftir; ideal kirilim ucgenin "
-            "yaklasik %60-75'lik bolumunde gerceklesir."
+            "Üçgenin ucuna çok yaklaşmış kırılımlar zayıftır; ideal kırılım üçgenin "
+            "yaklaşık %60-75'lik bölümünde gerçekleşir."
         ),
     ),
     Pattern.DESC_TRIANGLE: PatternInfo(
         pattern=Pattern.DESC_TRIANGLE,
-        label="Alcalan Ucgen",
+        label="Alçalan Üçgen",
         direction=Direction.SHORT,
         family="devam",
-        summary="Destek sabit, tepeler alcaliyor: saticilar her seferinde daha erken satiyor.",
+        summary="Destek sabit, tepeler alçalıyor: satıcılar her seferinde daha erken satıyor.",
         forms=(
-            "Altta yatay bir destek seviyesi, ustte alcalan bir direnc cizgisi. "
-            "Fiyat sikisarak ucgenin ucuna ilerler."
+            "Altta yatay bir destek seviyesi, üstte alçalan bir direnç çizgisi vardır. "
+            "Fiyat sıkışarak üçgenin ucuna ilerler."
         ),
         implication=(
-            "Alicilar geri cekiliyor, destek her testte zayifliyor. Klasik beklenti asagi yon."
+            "Alıcılar geri çekiliyor, destek her testte zayıflıyor. Klasik beklenti aşağı yön."
         ),
-        confirmation="Yatay destegin ALTINDA kapanis.",
-        invalidation="Alcalan direnc cizgisinin uzerinde kapanis formasyonu bozar.",
-        target="Ucgenin en genis yerindeki mesafe, kirilimdan asagi projekte edilir.",
+        confirmation="Yatay desteğin ALTINDA kapanış.",
+        invalidation="Alçalan direnç çizgisinin üzerinde kapanış formasyonu bozar.",
+        target="Üçgenin en geniş yerindeki mesafe, kırılımdan aşağı projekte edilir.",
         pitfalls=(
-            "Guclu yukselis trendlerinde alcalan ucgen bazen yukari kirilir; "
-            "formasyonun yonu trendden bagimsiz dusunulmemelidir."
+            "Güçlü yükseliş trendlerinde alçalan üçgen bazen yukarı kırılır; "
+            "formasyonun yönü trendden bağımsız düşünülmemelidir."
         ),
     ),
     Pattern.BULL_FLAG: PatternInfo(
         pattern=Pattern.BULL_FLAG,
-        label="Boga Bayragi",
+        label="Boğa Bayrağı",
         direction=Direction.LONG,
         family="devam",
-        summary="Sert yukselisten sonra kisa bir dinlenme; trendin devami beklenir.",
+        summary="Sert yükselişten sonra kısa bir dinlenme; trendin devamı beklenir.",
         forms=(
-            "Once dik bir yukselis (bayrak diregi), ardindan hafif asagi egimli dar bir "
-            "kanal icinde kar satisi. Duzeltme sig ve kisa surelidir."
+            "Önce dik bir yükseliş (bayrak direği), ardından hafif aşağı eğimli dar bir "
+            "kanal içinde kâr satışı görülür. Düzeltme sığ ve kısa sürelidir."
         ),
         implication=(
-            "Yukselis trendi kirilmadi, yalnizca nefeslendi. Klasik beklenti yukari yon."
+            "Yükseliş trendi kırılmadı, yalnızca nefeslendi. Klasik beklenti yukarı yön."
         ),
-        confirmation="Bayrak kanalinin ust sinirinin USTUNDE kapanis.",
+        confirmation="Bayrak kanalının üst sınırının ÜSTÜNDE kapanış.",
         invalidation=(
-            "Duzeltme bayrak diregi yukselisinin yarisindan fazlasini geri alirsa "
-            "formasyon bayrak olmaktan cikar."
+            "Düzeltme, bayrak direği yükselişinin yarısından fazlasını geri alırsa "
+            "formasyon bayrak olmaktan çıkar."
         ),
-        target="Bayrak diregi boyu, kirilim noktasindan yukari projekte edilir.",
+        target="Bayrak direği boyu, kırılım noktasından yukarı projekte edilir.",
         pitfalls=(
-            "Uzayan bayraklar guvenilirligini kaybeder; dinlenme birkac mumdan cok "
-            "surerse trend donusune donusebilir."
+            "Uzayan bayraklar güvenilirliğini kaybeder; dinlenme birkaç mumdan çok "
+            "sürerse trend dönüşüne dönüşebilir."
         ),
     ),
     Pattern.BEAR_FLAG: PatternInfo(
         pattern=Pattern.BEAR_FLAG,
-        label="Ayi Bayragi",
+        label="Ayı Bayrağı",
         direction=Direction.SHORT,
         family="devam",
-        summary="Sert dususten sonra kisa bir toparlanma; dususun devami beklenir.",
+        summary="Sert düşüşten sonra kısa bir toparlanma; düşüşün devamı beklenir.",
         forms=(
-            "Once dik bir dusus, ardindan hafif yukari egimli dar bir kanal icinde "
-            "tepki alimi."
+            "Önce dik bir düşüş, ardından hafif yukarı eğimli dar bir kanal içinde "
+            "tepki alımı görülür."
         ),
-        implication="Dusus trendi kirilmadi. Klasik beklenti asagi yon.",
-        confirmation="Bayrak kanalinin alt sinirinin ALTINDA kapanis.",
-        invalidation="Tepki, dusus hareketinin yarisindan fazlasini geri alirsa formasyon bozulur.",
-        target="Dusus hareketinin boyu, kirilimdan asagi projekte edilir.",
+        implication="Düşüş trendi kırılmadı. Klasik beklenti aşağı yön.",
+        confirmation="Bayrak kanalının alt sınırının ALTINDA kapanış.",
+        invalidation="Tepki, düşüş hareketinin yarısından fazlasını geri alırsa formasyon bozulur.",
+        target="Düşüş hareketinin boyu, kırılımdan aşağı projekte edilir.",
         pitfalls=(
-            "Dip arayisinda ayi bayragi ile cift dip karistirilir; ayirt edici olan "
-            "toparlanmanin sigligidir."
+            "Dip arayışında ayı bayrağı ile çift dip karıştırılır; ayırt edici olan "
+            "toparlanmanın sığlığıdır."
         ),
     ),
     Pattern.CUP_HANDLE: PatternInfo(
@@ -219,34 +219,34 @@ _GLOSSARY: dict[Pattern, PatternInfo] = {
         label="Fincan Kulp",
         direction=Direction.LONG,
         family="devam",
-        summary="Uzun ve yumusak bir taban olusumu, ardindan kisa bir son sarsintI.",
+        summary="Uzun ve yumuşak bir taban oluşumu, ardından kısa bir son sarsıntı.",
         forms=(
-            "Once U seklinde genis ve yuvarlak bir taban (fincan), sonra fincanin sag "
-            "kenarindan kucuk bir geri cekilme (kulp). Kulp fincanin ust yarisinda kalir."
+            "Önce U şeklinde geniş ve yuvarlak bir taban (fincan), sonra fincanın sağ "
+            "kenarından küçük bir geri çekilme (kulp) oluşur. Kulp fincanın üst yarısında kalır."
         ),
         implication=(
-            "Uzun sureli satis baskisi emildi, son zayif eller kulpta temizlendi. "
-            "Klasik beklenti yukari yon."
+            "Uzun süreli satış baskısı emildi, son zayıf eller kulpta temizlendi. "
+            "Klasik beklenti yukarı yön."
         ),
-        confirmation="Kulpun ust sinirinin (fincan agzi) USTUNDE kapanis.",
-        invalidation="Kulp fincanin alt yarisina inerse formasyon bozulur.",
-        target="Fincan derinligi, kirilim noktasindan yukari projekte edilir.",
+        confirmation="Kulpun üst sınırının (fincan ağzı) ÜSTÜNDE kapanış.",
+        invalidation="Kulp fincanın alt yarısına inerse formasyon bozulur.",
+        target="Fincan derinliği, kırılım noktasından yukarı projekte edilir.",
         pitfalls=(
-            "En cok zaman isteyen formasyondur; kisa periyotlarda (1h) olusan 'fincanlar' "
-            "cogu zaman rastlantidir. Gunluk ve haftalik grafiklerde daha anlamlidir."
+            "En çok zaman isteyen formasyondur; kısa periyotlarda (1h) oluşan 'fincanlar' "
+            "çoğu zaman rastlantıdır. Günlük ve haftalık grafiklerde daha anlamlıdır."
         ),
     ),
 }
 
 
 def get_info(pattern: Pattern | str) -> PatternInfo:
-    """Formasyon aciklamasini dondurur; bilinmeyen deger icin KeyError."""
+    """Formasyon açıklamasını döndürür; bilinmeyen değer için KeyError."""
     key = pattern if isinstance(pattern, Pattern) else Pattern(str(pattern).strip().lower())
     return _GLOSSARY[key]
 
 
 def get_info_safe(pattern: Pattern | str) -> PatternInfo | None:
-    """Bilinmeyen formasyonda None doner; UI akisini dusurmez (K-03)."""
+    """Bilinmeyen formasyonda None döner; UI akışını düşürmez (K-03)."""
     try:
         return get_info(pattern)
     except (KeyError, ValueError):
@@ -254,11 +254,11 @@ def get_info_safe(pattern: Pattern | str) -> PatternInfo | None:
 
 
 def all_info() -> list[PatternInfo]:
-    """Tum formasyonlar, Pattern enum sirasinda."""
+    """Tüm formasyonlar, Pattern enum sırasında."""
     return [_GLOSSARY[pattern] for pattern in Pattern]
 
 
 def short_meaning(pattern: Pattern | str) -> str:
-    """Bildirim govdesine eklenen tek satirlik ozet."""
+    """Bildirim gövdesine eklenen tek satırlık özet."""
     info = get_info_safe(pattern)
     return info.summary if info else ""

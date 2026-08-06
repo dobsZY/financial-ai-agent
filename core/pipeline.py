@@ -87,10 +87,10 @@ def _build_notification(
     meaning = short_meaning(detection.pattern)
     body_lines = [
         *([meaning, ""] if meaning else []),
-        f"Skor: {candidate.final_score:.2f} | Guven: {detection.confidence:.2f}",
+        f"Skor: {candidate.final_score:.2f} | Güven: {detection.confidence:.2f}",
         f"Fiyat: {candidate.price:.2f}" if candidate.price is not None else "Fiyat: yok",
-        f"Indikator teyidi: {candidate.indicator_score:+.2f}",
-        f"Haber duyarliligi: {candidate.sentiment:+.2f}",
+        f"İndikatör teyidi: {candidate.indicator_score:+.2f}",
+        f"Haber duyarlılığı: {candidate.sentiment:+.2f}",
         f"Kaynak: {detection.source} | Periyot: {candidate.interval}",
         *context_lines,
     ]
@@ -322,7 +322,7 @@ async def _alert_job_failure(job_name: str, error: str) -> None:
     try:
         await notify(
             Notification(
-                title=f"⚠️ Job hatasi: {job_name}",
+                title=f"⚠️ İş hatası: {job_name}",
                 body=f"{error}\n\nZaman: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
                 priority=Priority.HIGH,
             ),

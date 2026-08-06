@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import charts, health, news, patterns, signals, symbols
+from api.routes import charts, health, news, patterns, quotes, signals, symbols
 from config.settings import get_settings
 from core.logger import get_logger, setup_logging
 from core.scheduler import shutdown_scheduler, start_scheduler
@@ -46,6 +46,7 @@ app.include_router(symbols.router)
 app.include_router(news.router)
 app.include_router(charts.router)
 app.include_router(patterns.router)
+app.include_router(quotes.router)
 
 # Web paneli ayni process'ten servis edilir: tek komut, CORS yok, ayni Docker imaji.
 WEB_DIR = Path(__file__).resolve().parent / "web"

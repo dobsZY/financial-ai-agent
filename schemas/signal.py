@@ -96,7 +96,7 @@ class PatternInfo(BaseModel):
     pattern: Pattern
     label: str
     direction: Direction
-    family: str = Field(description="donus (trend donusu) veya devam (trend devami)")
+    family: str = Field(description="dönüş (trend dönüşü) veya devam (trend devamı)")
     summary: str
     forms: str
     implication: str

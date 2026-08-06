@@ -56,7 +56,7 @@ async def list_signals(
 async def get_signal(signal_id: int) -> SignalRead:
     row = await db_manager.get_signal(signal_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Sinyal bulunamadi")
+        raise HTTPException(status_code=404, detail="Sinyal bulunamadı")
     return _to_read(row[0], row[1])
 
 

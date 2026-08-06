@@ -75,8 +75,9 @@ Betiksiz eşdeğeri: `python main.py`. Tek process hem API'yi hem paneli servis 
 
 Saf HTML/CSS/JS — build adımı, Node bağımlılığı ve CORS ayarı yok. Dört görünüm:
 **Sinyaller** (master-detail: solda liste, sağda grafik + skor + haber + formasyon açıklaması),
-**İzleme Listesi** (ekle / duraklat / sil / tek sembol tara), **Haberler** (LLM özeti +
-sentiment rozeti), **Sistem** (sağlık kartları + `job_runs` tablosu).
+**İzleme Listesi** (ekle / duraklat / sil / tek sembol tara), **Canlı Takip** (seçilen sembolün
+fiyatı, indikatörleri ve grafiği periyodik yenilenir), **Haberler** (LLM özeti + sentiment
+rozeti), **Sistem** (sağlık kartları + `job_runs` tablosu).
 
 | Kısayol | İşlev |
 |---|---|
@@ -110,7 +111,8 @@ Hafta sonu ve sabit tarihli resmî tatiller atlanır (`core/market_hours.py`).
 | `POST /scan`, `POST /news/poll` | Manuel tarama / bildirim yoklaması (`background: true` ile asenkron) |
 | `GET /symbols` + `POST` / `PATCH` / `DELETE` | İzleme listesi CRUD |
 | `GET /news`, `POST /news/summarize` | Haberler + LLM özetleri; kota kesintisinde özetsiz kalanları tamamlama |
-| `GET /charts/{ticker}` | Mum grafiği (PNG, RAM'de üretilir) |
+| `GET /charts/{ticker}` | Mum grafiği (PNG, RAM'de üretilir); `live=true` önbelleği atlar, kaynaktan taze çeker |
+| `GET /quote/{ticker}` | Canlı fiyat: son fiyat, değişim, yüksek/düşük, hacim, RSI/EMA/MACD anlık görüntüsü |
 | `GET /patterns`, `GET /patterns/{pattern}` | Formasyon sözlüğü: ne demek, nasıl teyit edilir, nerede geçersiz olur |
 | `GET /jobs` | Son iş çalıştırmaları |
 
@@ -161,7 +163,7 @@ kendiliğinden etkinleşir; sürüm ve metrikler `GET /system/model` ile görül
 ## Geliştirme
 
 ```powershell
-pytest                       # 169 test
+pytest                       # 184 test
 pytest --cov                 # kapsam (eşik %70, güncel %83)
 ruff check .
 mypy --ignore-missing-imports .

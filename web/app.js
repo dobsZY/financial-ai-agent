@@ -15,6 +15,7 @@ const state = {
   patterns: {},          // pattern -> PatternInfo
   selected: null,
   auto: true, theme: "dark", busy: false,
+  live: { ticker: "", interval: "1h", every: 30, quote: null, timer: null, error: null, tick: 0 },
 };
 
 /* ------------------------------------------------------------------ API */
@@ -260,6 +261,109 @@ function renderSystem() {
     </div>`;
 }
 
+
+/* ------------------------------------------------------------ canlı takip */
+
+function renderLive() {
+  const L = state.live;
+  $("#title").textContent = "Canlı Takip";
+  $("#subtitle").textContent = L.ticker
+    ? `${L.ticker} · ${L.interval} · ${L.every} saniyede bir yenileniyor`
+    : "bir sembol seç, fiyat ve grafik canlı akmaya başlasın";
+  $("#seg").innerHTML = "";
+
+  const options = [...new Set([...state.symbols.map((s) => s.ticker), L.ticker].filter(Boolean))];
+  const bar = `
+    <div class="live-bar">
+      <input id="live-ticker" list="live-symbols" value="${esc(L.ticker)}"
+             placeholder="Sembol — THYAO.IS, AAPL…" autocomplete="off">
+      <datalist id="live-symbols">${options.map((o) => `<option value="${esc(o)}">`).join("")}</datalist>
+      <select id="live-interval">${["5m", "15m", "30m", "1h", "1d"]
+        .map((i) => `<option ${i === L.interval ? "selected" : ""}>${i}</option>`).join("")}</select>
+      <select id="live-every">${[10, 15, 30, 60, 120]
+        .map((s) => `<option value="${s}" ${s === L.every ? "selected" : ""}>${s} sn</option>`).join("")}</select>
+      <button class="primary" id="live-start">${L.timer ? "Durdur" : "Takibi başlat"}</button>
+    </div>`;
+
+  if (!L.ticker) {
+    $("#main").innerHTML = bar + emptyState("◎", "Canlı takip için sembol gir",
+      "İzleme listendeki semboller otomatik önerilir.");
+    return;
+  }
+
+  if (L.error) {
+    $("#main").innerHTML = bar + emptyState("⚡", L.error, "Sembol kodunu kontrol et.");
+    return;
+  }
+
+  const q = L.quote;
+  if (!q) { $("#main").innerHTML = bar + '<div class="skeleton" style="height:150px"></div>'; return; }
+
+  const up = q.change >= 0;
+  const col = up ? "var(--long)" : "var(--short)";
+  const ind = q.indicators || {};
+  const indCard = (k, v, fmt = 2) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v == null ? "–" : Number(v).toFixed(fmt)}</div></div>`;
+
+  $("#main").innerHTML = bar + `
+    <div class="quote">
+      <div>
+        <div class="sym"><span class="pulse" style="background:${col}"></span>${esc(q.ticker)} · ${esc(q.market)} · ${esc(q.interval)}</div>
+        <div class="px" style="color:${col}">${q.price.toFixed(2)}</div>
+      </div>
+      <div class="delta" style="color:${col};background:${up ? "var(--long-bg)" : "var(--short-bg)"}">
+        ${up ? "▲" : "▼"} ${q.change.toFixed(2)} (${up ? "+" : ""}${q.change_pct.toFixed(2)}%)</div>
+      <div class="meta">
+        <div><div class="k">Yüksek</div><div class="v">${q.high.toFixed(2)}</div></div>
+        <div><div class="k">Düşük</div><div class="v">${q.low.toFixed(2)}</div></div>
+        <div><div class="k">Önceki</div><div class="v">${q.previous_close.toFixed(2)}</div></div>
+        <div><div class="k">Hacim</div><div class="v">${Intl.NumberFormat("tr-TR", { notation: "compact" }).format(q.volume)}</div></div>
+        <div><div class="k">Son mum</div><div class="v">${esc(fmtTime(q.last_candle_ts))}</div></div>
+      </div>
+      ${q.is_stale ? '<div class="stale">⚠ Veri bayat görünüyor — piyasa kapalı olabilir.</div>' : ""}
+    </div>
+
+    <img class="livechart" alt="${esc(q.ticker)} canlı grafik"
+         src="${chartUrl(q.ticker, { interval: L.interval, w: 1400, h: 560, candles: 150 })}&live=true&t=${L.tick}">
+
+    <div class="ind">
+      ${indCard("RSI(14)", ind.rsi, 1)}
+      ${indCard("EMA 20", ind.ema_20)}
+      ${indCard("EMA 50", ind.ema_50)}
+      ${indCard("EMA 200", ind.ema_200)}
+      ${indCard("MACD hist", ind.macd_hist, 3)}
+      ${indCard("Hacim oranı", ind.volume_ratio, 2)}
+    </div>`;
+}
+
+async function refreshQuote() {
+  const L = state.live;
+  if (!L.ticker) return;
+  try {
+    L.quote = await api(`/quote/${encodeURIComponent(L.ticker)}?interval=${L.interval}`);
+    L.error = null;
+    L.tick += 1;
+  } catch (err) {
+    L.error = `${L.ticker} için fiyat alınamadı — ${err.message}`;
+  }
+  if (state.view === "live") renderLive();
+}
+
+function stopLive() {
+  if (state.live.timer) { clearInterval(state.live.timer); state.live.timer = null; }
+}
+
+async function startLive(ticker, interval, every) {
+  const L = state.live;
+  stopLive();
+  Object.assign(L, { ticker: ticker.trim().toUpperCase(), interval, every, quote: null, error: null });
+  go("live");
+  await refreshQuote();
+  L.timer = setInterval(refreshQuote, every * 1000);
+  renderLive();
+  toast(`${L.ticker} canlı takipte — ${every} sn`, "ok");
+}
+
 /* ---------------------------------------------------------- detay bolmesi */
 
 async function renderDetail() {
@@ -312,6 +416,7 @@ async function renderDetail() {
       <p style="margin:0;font-size:12.5px;color:var(--fg-mute)">yükleniyor…</p></div>
 
     <div class="acts">
+      <button class="ghost" data-live="${esc(s.ticker)}">◎ Canlı izle</button>
       <button class="ghost" data-scan-one="${esc(s.ticker)}">Yeniden tara</button>
       <a class="ghost" style="display:grid;place-items:center;text-decoration:none"
          href="${chartUrl(s.ticker, { w: 1600, h: 900, candles: 200 })}" target="_blank" rel="noopener">Grafiği büyüt</a>
@@ -344,7 +449,7 @@ async function openPattern(pattern) {
       <h3>${info.direction === "LONG" ? "▲" : "▼"} ${esc(info.label)}
         <span class="chip ${info.direction === "LONG" ? "long" : "short"}">
           beklenen yön: ${info.direction === "LONG" ? "yukarı" : "aşağı"}</span>
-        <span class="chip">${info.family === "donus" ? "trend dönüşü" : "trend devamı"}</span></h3>
+        <span class="chip">${info.family === "dönüş" ? "trend dönüşü" : "trend devamı"}</span></h3>
       <p class="sum">${esc(info.summary)}</p>
     </div>
     <div class="mbody">
@@ -372,6 +477,7 @@ const COMMANDS = [
   { icon: "✉", label: "Haber yoklaması", tail: "komut", run: () => triggerPoll() },
   { icon: "★", label: "Özetsiz haberleri tamamla", tail: "komut", run: () => triggerSummarize() },
   { icon: "◐", label: "Temayı değiştir", tail: "komut", run: () => toggleTheme() },
+  { icon: "◎", label: "Canlı takip", tail: "sayfa", run: () => go("live") },
 ];
 
 function paintPalette(q = "") {
@@ -385,6 +491,10 @@ function paintPalette(q = "") {
     label: `${x.ticker} — ${patternLabel(x.pattern)}`,
     tail: (x.final_score ?? 0).toFixed(2),
     run: () => { go("signals"); select(x.id); },
+  }))]);
+  if (s && sig.length) groups.push(["Canlı takip", sig.slice(0, 3).map((x) => ({
+    icon: "◎", label: `${x.ticker} canlı izle`, tail: "canlı",
+    run: () => startLive(x.ticker, state.live.interval, state.live.every),
   }))]);
 
   const pat = Object.values(state.patterns)
@@ -458,6 +568,7 @@ const triggerSummarize = () => withBusy(async () => {
 /* ---------------------------------------------------------------- yonlendirme */
 
 function go(view) {
+  if (view !== "live") stopLive();
   state.view = view;
   location.hash = `#/${view}`;
   $$(".nav[data-view]").forEach((b) => b.classList.toggle("act", b.dataset.view === view));
@@ -481,7 +592,7 @@ function render() {
   $("#st-integrations").innerHTML =
     `Telegram <b>${int.telegram ? "bağlı" : "kapalı"}</b> · Gemini <b>${int.gemini ? "bağlı" : "kapalı"}</b>`;
 
-  ({ signals: renderSignals, watchlist: renderWatchlist, news: renderNews, system: renderSystem }[state.view])();
+  ({ signals: renderSignals, watchlist: renderWatchlist, live: renderLive, news: renderNews, system: renderSystem }[state.view])();
   renderDetail();
 }
 
@@ -552,6 +663,16 @@ document.addEventListener("click", async (e) => {
     }, "Silme");
   }
 
+  if (t.id === "live-start") {
+    if (state.live.timer) { stopLive(); renderLive(); return toast("Canlı takip durduruldu"); }
+    const ticker = $("#live-ticker").value.trim();
+    if (!ticker) return toast("Önce sembol gir", "err");
+    return startLive(ticker, $("#live-interval").value, +$("#live-every").value);
+  }
+
+  const liveOne = t.closest("[data-live]");
+  if (liveOne) return startLive(liveOne.dataset.live, state.live.interval, state.live.every);
+
   if (t.id === "add-symbol") {
     const ticker = $("#new-ticker").value.trim();
     if (!ticker) return toast("Önce sembol kodu gir", "err");
@@ -603,7 +724,7 @@ document.addEventListener("keydown", (e) => {
 
 window.addEventListener("hashchange", () => {
   const v = location.hash.replace("#/", "");
-  if (["signals", "watchlist", "news", "system"].includes(v) && v !== state.view) go(v);
+  if (["signals", "watchlist", "live", "news", "system"].includes(v) && v !== state.view) go(v);
 });
 
 /* ---------------------------------------------------------------------- baslat */
@@ -614,7 +735,7 @@ window.addEventListener("hashchange", () => {
   $("#auto").classList.toggle("on", state.auto);
 
   const v = location.hash.replace("#/", "");
-  state.view = ["signals", "watchlist", "news", "system"].includes(v) ? v : "signals";
+  state.view = ["signals", "watchlist", "live", "news", "system"].includes(v) ? v : "signals";
   $$(".nav[data-view]").forEach((b) => b.classList.toggle("act", b.dataset.view === state.view));
 
   await loadPatterns();

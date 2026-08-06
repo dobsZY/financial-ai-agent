@@ -104,3 +104,83 @@ async def test_sparkline_height_is_allowed(
 
     assert ok.status_code == 200
     assert too_small.status_code == 422
+
+
+# --- canlı takip -----------------------------------------------------------
+
+
+async def test_quote_returns_live_snapshot(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, frame: OHLCVFrame, clean_db: None
+) -> None:
+    async def fake_fetch(configs, **kwargs):
+        return {configs[0].yf_ticker: frame}
+
+    monkeypatch.setattr("api.routes.quotes.fetch_many", fake_fetch)
+
+    payload = (await client.get("/quote/AAPL")).json()
+
+    assert payload["ticker"] == "AAPL"
+    assert payload["market"] == "NASDAQ"
+    assert payload["price"] == pytest.approx(float(frame.df["close"].iloc[-1]), abs=1e-3)
+    assert payload["change"] == pytest.approx(
+        payload["price"] - payload["previous_close"], abs=1e-3
+    )
+    assert {"rsi", "ema_50", "macd_hist", "volume_ratio"} <= set(payload["indicators"])
+
+
+async def test_quote_persists_fetched_candles(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, frame: OHLCVFrame, clean_db: None
+) -> None:
+    async def fake_fetch(configs, **kwargs):
+        return {configs[0].yf_ticker: frame}
+
+    monkeypatch.setattr("api.routes.quotes.fetch_many", fake_fetch)
+
+    await client.get("/quote/AAPL")
+
+    stored = await db_manager.load_frame("AAPL")
+    assert stored is not None and not stored.is_empty
+
+
+async def test_quote_reports_unreachable_source(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, clean_db: None
+) -> None:
+    async def boom(configs, **kwargs):
+        raise RuntimeError("ağ hatası")
+
+    monkeypatch.setattr("api.routes.quotes.fetch_many", boom)
+
+    response = await client.get("/quote/AAPL")
+
+    assert response.status_code == 502
+    assert "ulaşılamadı" in response.json()["detail"]
+
+
+async def test_live_chart_bypasses_cache_and_db(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, frame: OHLCVFrame, clean_db: None
+) -> None:
+    """live=true DB'yi degil kaynagi kullanmali."""
+    calls: list[str] = []
+
+    async def fake_fetch(configs, **kwargs):
+        calls.append(configs[0].yf_ticker)
+        return {configs[0].yf_ticker: frame}
+
+    monkeypatch.setattr("api.routes.charts.fetch_many", fake_fetch)
+    await db_manager.save_frames([frame])
+
+    normal = await client.get("/charts/AAPL", params={"width": 320, "height": 200})
+    live = await client.get("/charts/AAPL", params={"width": 320, "height": 200, "live": True})
+
+    assert normal.status_code == live.status_code == 200
+    assert calls == ["AAPL"], "yalnizca live cagrisi kaynaga gitmeli"
+
+
+async def test_turkish_text_survives_the_api(client: httpx.AsyncClient) -> None:
+    """Kullaniciya donen metinler Turkce karakterleri korumali."""
+    payload = (await client.get("/patterns/asc_triangle")).json()
+
+    assert payload["label"] == "Yükselen Üçgen"
+    assert "Direnç" in payload["summary"]
+    assert payload["family"] == "devam"
+    assert (await client.get("/patterns/double_top")).json()["label"] == "Çift Tepe"

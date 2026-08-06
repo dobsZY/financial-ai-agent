@@ -34,16 +34,16 @@ def test_confirmation_states_a_direction() -> None:
     """Teyit metni hangi yone kapanis gerektigini acikca soylemeli."""
     for info in glossary.all_info():
         text = info.confirmation.upper()
-        assert "USTUNDE" in text or "ALTINDA" in text, info.pattern.value
+        assert "ÜSTÜNDE" in text or "ALTINDA" in text, info.pattern.value
 
 
 def test_family_values_are_known() -> None:
-    assert {info.family for info in glossary.all_info()} <= {"donus", "devam"}
+    assert {info.family for info in glossary.all_info()} <= {"dönüş", "devam"}
 
 
 def test_lookup_accepts_string_and_enum() -> None:
-    assert glossary.get_info("double_top").label == "Cift Tepe"
-    assert glossary.get_info(Pattern.DOUBLE_TOP).label == "Cift Tepe"
+    assert glossary.get_info("double_top").label == "Çift Tepe"
+    assert glossary.get_info(Pattern.DOUBLE_TOP).label == "Çift Tepe"
     assert glossary.get_info(" DOUBLE_TOP ".strip().lower()).direction is Direction.SHORT
 
 
@@ -54,7 +54,7 @@ def test_unknown_pattern_is_safe() -> None:
 
 
 def test_short_meaning_for_notifications() -> None:
-    assert glossary.short_meaning(Pattern.ASC_TRIANGLE).startswith("Direnc sabit")
+    assert glossary.short_meaning(Pattern.ASC_TRIANGLE).startswith("Direnç sabit")
     assert glossary.short_meaning("bilinmeyen") == ""
 
 
@@ -80,9 +80,9 @@ async def test_detail_endpoint(client: httpx.AsyncClient) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["label"] == "Omuz Bas Omuz"
+    assert payload["label"] == "Omuz Baş Omuz"
     assert payload["direction"] == "SHORT"
-    assert "boyun cizgisi" in payload["confirmation"].lower()
+    assert "boyun çizgisi" in payload["confirmation"].lower()
 
 
 async def test_detail_endpoint_404(client: httpx.AsyncClient) -> None:
@@ -92,8 +92,8 @@ async def test_detail_endpoint_404(client: httpx.AsyncClient) -> None:
 async def test_notes_endpoint_carries_warnings(client: httpx.AsyncClient) -> None:
     payload = (await client.get("/patterns/notes")).json()
 
-    assert "yatirim tavsiyesi degildir" in payload["disclaimer"]
-    assert "kirilimin" in payload["detection_caveat"]
+    assert "yatırım tavsiyesi değildir" in payload["disclaimer"]
+    assert "kırılımın" in payload["detection_caveat"]
 
 
 # --- UI bileseni -------------------------------------------------------
@@ -125,8 +125,8 @@ def test_header_shows_expected_direction() -> None:
     header = pattern_sheet.build_header(info, "ASELS.IS")
     chips = header.controls[1].controls
 
-    assert "ASAGI" in chips[0].content.controls[-1].value
-    assert chips[1].content.controls[-1].value == "Trend donusu"
+    assert "AŞAĞI" in chips[0].content.controls[-1].value
+    assert chips[1].content.controls[-1].value == "Trend dönüşü"
 
 
 def test_unavailable_dialog_names_the_pattern() -> None:
