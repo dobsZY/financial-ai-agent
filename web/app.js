@@ -141,7 +141,7 @@ function renderSignals() {
 
   $("#main").innerHTML = rows.map((s) => `
     <div class="row ${state.selected === s.id ? "sel" : ""}" data-id="${s.id}">
-      <div><span class="tk">${esc(s.ticker)}<small>${s.ticker.endsWith(".IS") ? "BIST" : "NASDAQ"} · 1h</small></span></div>
+      <div><span class="tk">${esc(s.ticker)}<small>${s.ticker.endsWith(".IS") ? "BIST" : "NASDAQ"} · ${esc(relTime(s.created_at))}${s.notified_at ? " · bildirildi" : ""}</small></span></div>
       <div class="pat"><span>${esc(patternLabel(s.pattern))}</span>
         <button class="help" data-help="${esc(s.pattern)}" title="Bu ne demek?">?</button>
         <small></small></div>
