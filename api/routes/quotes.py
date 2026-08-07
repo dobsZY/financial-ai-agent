@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+from typing import Final
+
 from fastapi import APIRouter, HTTPException
 
 from core.data_fetcher import fetch_many
@@ -11,6 +14,11 @@ from schemas.market import Interval, QuoteRead, SymbolConfig
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["quotes"])
+
+# Panel 5 saniyede bir yenileyebiliyor; bu kisa omurlu onbellek saglayiciyi
+# gereksiz istekten korur. Birden fazla sekme aciksa da tek istek yeter.
+_QUOTE_TTL_SECONDS: Final = 4.0
+_cache: dict[tuple[str, str], tuple[float, QuoteRead]] = {}
 
 
 @router.get("/quote/{ticker}", response_model=QuoteRead)
@@ -26,6 +34,11 @@ async def get_quote(
     yazılır, böylece grafik ucu da tazelenmiş olur.
     """
     config = SymbolConfig.from_ticker(ticker, interval=interval)
+
+    key = (config.yf_ticker, interval.value)
+    cached = _cache.get(key)
+    if cached is not None and time.monotonic() - cached[0] < _QUOTE_TTL_SECONDS:
+        return cached[1]
 
     try:
         frames = await fetch_many([config])
@@ -49,7 +62,7 @@ async def get_quote(
     previous = float(df["close"].iloc[-2]) if len(df) > 1 else price
     change = price - previous
 
-    return QuoteRead(
+    quote = QuoteRead(
         ticker=config.yf_ticker,
         market=config.market.value,
         interval=interval.value,
@@ -64,3 +77,8 @@ async def get_quote(
         is_stale=frame.is_stale(),
         indicators=indicator_snapshot(df),
     )
+
+    if len(_cache) > 32:
+        _cache.clear()
+    _cache[key] = (time.monotonic(), quote)
+    return quote

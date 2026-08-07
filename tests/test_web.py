@@ -1,13 +1,22 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import httpx
 import pytest
 
+from api.routes import quotes
 from database import db_manager
 from main import WEB_DIR, app
 from schemas.market import OHLCVFrame
+
+
+@pytest.fixture(autouse=True)
+def _clear_quote_cache() -> Iterator[None]:
+    """Kisa omurlu fiyat onbellegi testler arasinda sizmamali."""
+    quotes._cache.clear()
+    yield
+    quotes._cache.clear()
 
 
 @pytest.fixture
@@ -184,3 +193,39 @@ async def test_turkish_text_survives_the_api(client: httpx.AsyncClient) -> None:
     assert "Direnç" in payload["summary"]
     assert payload["family"] == "devam"
     assert (await client.get("/patterns/double_top")).json()["label"] == "Çift Tepe"
+
+
+async def test_quote_cache_shields_the_provider(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, frame: OHLCVFrame, clean_db: None
+) -> None:
+    """Panel saniyeler icinde birden cok kez yenilese de kaynaga bir kez gidilir."""
+    calls: list[str] = []
+
+    async def fake_fetch(configs, **kwargs):
+        calls.append(configs[0].yf_ticker)
+        return {configs[0].yf_ticker: frame}
+
+    monkeypatch.setattr("api.routes.quotes.fetch_many", fake_fetch)
+
+    first = (await client.get("/quote/AAPL")).json()
+    second = (await client.get("/quote/AAPL")).json()
+
+    assert first == second
+    assert calls == ["AAPL"], "ikinci istek onbellekten donmeli"
+
+
+async def test_quote_cache_is_per_interval(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, frame: OHLCVFrame, clean_db: None
+) -> None:
+    calls: list[str] = []
+
+    async def fake_fetch(configs, **kwargs):
+        calls.append(configs[0].interval.value)
+        return {configs[0].yf_ticker: frame}
+
+    monkeypatch.setattr("api.routes.quotes.fetch_many", fake_fetch)
+
+    await client.get("/quote/AAPL", params={"interval": "1h"})
+    await client.get("/quote/AAPL", params={"interval": "1d"})
+
+    assert calls == ["1h", "1d"], "farkli periyot ayri onbellek anahtari olmali"

@@ -15,7 +15,7 @@ const state = {
   patterns: {},          // pattern -> PatternInfo
   selected: null,
   auto: true, theme: "dark", busy: false,
-  live: { ticker: "", interval: "1h", every: 30, quote: null, timer: null, error: null, tick: 0 },
+  live: { ticker: "", interval: "1h", every: 10, quote: null, timer: null, error: null, tick: 0 },
 };
 
 /* ------------------------------------------------------------------ API */
@@ -268,7 +268,7 @@ function renderLive() {
   const L = state.live;
   $("#title").textContent = "Canlı Takip";
   $("#subtitle").textContent = L.ticker
-    ? `${L.ticker} · ${L.interval} · ${L.every} saniyede bir yenileniyor`
+    ? `${L.ticker} · ${L.interval} · her ${L.every} sn · ${L.timer ? "canlı" : "durduruldu"}`
     : "bir sembol seç, fiyat ve grafik canlı akmaya başlasın";
   $("#seg").innerHTML = "";
 
@@ -280,7 +280,7 @@ function renderLive() {
       <datalist id="live-symbols">${options.map((o) => `<option value="${esc(o)}">`).join("")}</datalist>
       <select id="live-interval">${["5m", "15m", "30m", "1h", "1d"]
         .map((i) => `<option ${i === L.interval ? "selected" : ""}>${i}</option>`).join("")}</select>
-      <select id="live-every">${[10, 15, 30, 60, 120]
+      <select id="live-every">${[3, 5, 10, 15, 30, 60]
         .map((s) => `<option value="${s}" ${s === L.every ? "selected" : ""}>${s} sn</option>`).join("")}</select>
       <button class="primary" id="live-start">${L.timer ? "Durdur" : "Takibi başlat"}</button>
     </div>`;
