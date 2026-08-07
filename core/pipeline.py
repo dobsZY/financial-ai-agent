@@ -12,16 +12,22 @@ from core.chart_factory import render_chart, to_png_bytes
 from core.data_fetcher import fetch_many, watchlist_from_settings
 from core.logger import get_logger
 from core.market_hours import filter_open_tickers
-from core.pattern_glossary import short_meaning
+from core.pattern_glossary import get_info_safe, short_meaning
 from core.scoring import bucket_timestamp, compute_final_score, cooldown_cutoff, should_notify
-from core.indicators import trend_confirmation
+from core.indicators import compute_all, trend_confirmation
 from database import db_manager
 from notifications.base import Notification, Priority, notify
 from schemas.market import Interval, OHLCVFrame, SymbolConfig
 from schemas.news import NewsItem, NewsSource
-from schemas.signal import Detection, SignalCandidate
+from schemas.signal import Detection, Direction, SignalCandidate
 
 logger = get_logger(__name__)
+
+
+def pattern_label(pattern: str) -> str:
+    """Formasyonun Turkce adi; sozlukte yoksa ham deger."""
+    info = get_info_safe(pattern)
+    return info.label if info else pattern.replace("_", " ")
 
 _DIRECTION_EMOJI = {"LONG": "\U0001f4c8", "SHORT": "\U0001f4c9"}
 
@@ -33,6 +39,8 @@ class ScanResult:
     saved: int = 0
     notified: int = 0
     skipped_duplicate: int = 0
+    confirmed: int = 0
+    alerts_fired: int = 0
     errors: list[str] = field(default_factory=list)
     candidates: list[SignalCandidate] = field(default_factory=list)
 
@@ -44,6 +52,8 @@ class ScanResult:
             "saved": self.saved,
             "notified": self.notified,
             "skipped_duplicate": self.skipped_duplicate,
+            "confirmed": self.confirmed,
+            "alerts_fired": self.alerts_fired,
             "errors": len(self.errors),
         }
 
@@ -108,6 +118,7 @@ async def _process_frame(
     cutoff: datetime,
     send_notification: bool,
     attach_chart: bool,
+    mtf_score: float | None = None,
 ) -> None:
     detections = filter_by_confidence(
         await _collect_detections(frame), get_settings().min_confidence
@@ -129,7 +140,8 @@ async def _process_frame(
             price=frame.latest_close,
             indicator_score=indicator_score,
             sentiment=sentiment,
-            final_score=compute_final_score(detection, indicator_score, sentiment),
+            mtf_score=mtf_score,
+            final_score=compute_final_score(detection, indicator_score, sentiment, mtf_score),
         )
         result.candidates.append(candidate)
 
@@ -200,15 +212,37 @@ async def run_scan(
             logger.warning("pipeline.persist_failed", error=str(exc))
             result.errors.append(f"mum yazimi: {exc}")
 
+    mtf_scores = await _mtf_scores(list(frames), target_interval)
+
     cutoff = cooldown_cutoff()
     for frame in frames.values():
         try:
-            await _process_frame(frame, result, cutoff, send_notification, attach_chart)
+            await _process_frame(
+                frame,
+                result,
+                cutoff,
+                send_notification,
+                attach_chart,
+                mtf_scores.get(frame.symbol.yf_ticker),
+            )
         except Exception as exc:  # noqa: BLE001 - tek sembol hatasi taramayi durdurmaz
             logger.warning(
                 "pipeline.symbol_failed", ticker=frame.symbol.yf_ticker, error=str(exc)
             )
             result.errors.append(f"{frame.symbol.yf_ticker}: {exc}")
+
+    # Formasyon sekli bulundu; asil islem noktasi kirilimdir (Faz 6.1)
+    try:
+        result.confirmed = await check_breakouts(frames, send_notification=send_notification)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("pipeline.breakout_check_failed", error=str(exc))
+        result.errors.append(f"kirilim kontrolu: {exc}")
+
+    try:
+        result.alerts_fired = await check_alerts(frames, send_notification=send_notification)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("pipeline.alert_check_failed", error=str(exc))
+        result.errors.append(f"alarm kontrolu: {exc}")
 
     logger.info("pipeline.scan_completed", **result.summary)
     return result
@@ -314,6 +348,213 @@ async def backfill_summaries(limit: int = 20) -> dict[str, int]:
         stats["summarized"] += 1
 
     logger.info("pipeline.backfill_completed", **stats)
+    return stats
+
+
+
+
+async def _mtf_scores(tickers: list[str], interval: Interval) -> dict[str, float]:
+    """Ust zaman diliminde trend teyidi (Faz 6.5).
+
+    1h'te cikan LONG sinyali gunluk grafikte dusus trendindeyse skoru dusurulur.
+    Veri alinamazsa bos doner; skorlama bu durumda MTF agirligini toplamdan duser.
+    """
+    settings = get_settings()
+    higher = Interval(settings.mtf_interval)
+    if not settings.mtf_enabled or not tickers or higher == interval:
+        return {}
+
+    try:
+        frames = await fetch_many(
+            [SymbolConfig.from_ticker(ticker, interval=higher) for ticker in tickers]
+        )
+    except Exception as exc:  # noqa: BLE001 - teyit yoksa akis surer
+        logger.warning("pipeline.mtf_fetch_failed", error=str(exc))
+        return {}
+
+    scores = {
+        ticker: trend_confirmation(frame.df)
+        for ticker, frame in frames.items()
+        if not frame.is_empty
+    }
+    logger.info("pipeline.mtf_ready", interval=higher.value, symbols=len(scores))
+    return scores
+
+
+def _breakout_hit(
+    frame: OHLCVFrame, bucket_ts: datetime, level: float, direction: str, window: int
+) -> tuple[float, float | None] | None:
+    """Sinyalden sonraki mumlarda seviye asildi mi? (fiyat, hacim orani) doner."""
+    reference = bucket_ts if bucket_ts.tzinfo else bucket_ts.replace(tzinfo=timezone.utc)
+    future = frame.df[frame.df.index > reference].head(window)
+    if future.empty:
+        return None
+
+    closes = future["close"]
+    crossed = closes[closes > level] if direction == Direction.LONG.value else closes[closes < level]
+    if crossed.empty:
+        return None
+
+    moment = crossed.index[0]
+    volume_ratio: float | None = None
+    try:
+        enriched = compute_all(frame.df)
+        if "volume_ratio" in enriched.columns and moment in enriched.index:
+            value = enriched.loc[moment, "volume_ratio"]
+            volume_ratio = None if value != value else round(float(value), 3)  # NaN kontrolu
+    except Exception as exc:  # noqa: BLE001 - hacim orani opsiyonel
+        logger.warning("pipeline.volume_ratio_failed", error=str(exc))
+
+    return float(crossed.iloc[0]), volume_ratio
+
+
+async def check_breakouts(
+    frames: dict[str, OHLCVFrame], send_notification: bool = True
+) -> int:
+    """Bekleyen sinyallerde kirilim gerceklesti mi (Faz 6.1)."""
+    settings = get_settings()
+    rows = await db_manager.pending_breakouts(tickers=list(frames))
+    confirmed = 0
+
+    for signal, ticker in rows:
+        frame = frames.get(ticker)
+        if frame is None or frame.is_empty or signal.breakout_level is None:
+            continue
+
+        hit = _breakout_hit(
+            frame,
+            signal.bucket_ts,
+            float(signal.breakout_level),
+            signal.direction,
+            settings.breakout_window_bars,
+        )
+        if hit is None:
+            continue
+
+        price, volume_ratio = hit
+        if (
+            settings.breakout_min_volume_ratio > 0
+            and volume_ratio is not None
+            and volume_ratio < settings.breakout_min_volume_ratio
+        ):
+            logger.info("pipeline.breakout_low_volume", ticker=ticker, ratio=volume_ratio)
+            continue
+
+        if await db_manager.mark_confirmed(signal.id, price, volume_ratio) is None:
+            continue
+        confirmed += 1
+
+        if send_notification:
+            await notify(_breakout_notification(signal, ticker, price, volume_ratio))
+
+    if confirmed:
+        logger.info("pipeline.breakouts_confirmed", count=confirmed)
+    return confirmed
+
+
+def _breakout_notification(signal, ticker: str, price: float, volume_ratio: float | None):
+    up = signal.direction == Direction.LONG.value
+    label = pattern_label(signal.pattern)
+    emoji = "\U0001f680" if up else "\U0001f53b"
+    lines = [
+        f"{label} {'yukari' if up else 'asagi'} kirildi.",
+        "",
+        f"Kirilim fiyati: {price:.2f} (seviye {signal.breakout_level:.2f})",
+    ]
+    if volume_ratio is not None:
+        lines.append(f"Hacim: ortalamanin {volume_ratio:.2f} kati")
+    lines.append(f"Sinyal skoru: {signal.final_score:.2f}" if signal.final_score else "")
+    return Notification(
+        title=f"{emoji} {ticker} - KIRILIM ({signal.direction})",
+        body="\n".join(line for line in lines if line != ""),
+        priority=Priority.HIGH,
+    )
+
+
+async def check_alerts(frames: dict[str, OHLCVFrame], send_notification: bool = True) -> int:
+    """Kullanici tanimli fiyat alarmlari (Faz 6.3). Tetiklenen alarm kapanir."""
+    alerts = await db_manager.list_alerts(active_only=True)
+    fired = 0
+
+    for alert in alerts:
+        frame = frames.get(alert.ticker)
+        if frame is None or frame.is_empty:
+            continue
+        price = frame.latest_close
+        if price is None:
+            continue
+
+        hit = price >= alert.price if alert.direction == "above" else price <= alert.price
+        if not hit:
+            continue
+
+        if await db_manager.trigger_alert(alert.id, price) is None:
+            continue
+        fired += 1
+
+        if send_notification:
+            arrow = "\u25b2" if alert.direction == "above" else "\u25bc"
+            body = [f"Fiyat {price:.2f} — alarm seviyesi {alert.price:.2f}"]
+            if alert.note:
+                body.append(f"Not: {alert.note}")
+            await notify(
+                Notification(
+                    title=f"\U0001f514 {alert.ticker} {arrow} {alert.price:.2f}",
+                    body="\n".join(body),
+                    priority=Priority.HIGH,
+                )
+            )
+
+    if fired:
+        logger.info("pipeline.alerts_fired", count=fired)
+    return fired
+
+
+async def evaluate_outcomes(horizon: int | None = None, limit: int = 200) -> dict[str, int]:
+    """Sinyalleri N mum sonrasina tasiyip sonucunu kaydeder (Faz 6.2)."""
+    from core.backtest import evaluate_outcome
+
+    settings = get_settings()
+    bars = horizon or settings.outcome_horizon_bars
+    rows = await db_manager.signals_awaiting_outcome(limit=limit)
+    stats = {"pending": len(rows), "evaluated": 0, "not_ready": 0}
+
+    cache: dict[tuple[str, str], OHLCVFrame | None] = {}
+    for signal, ticker, interval in rows:
+        key = (ticker, interval)
+        if key not in cache:
+            cache[key] = await db_manager.load_frame(ticker, interval=Interval(interval), limit=5000)
+        frame = cache[key]
+        if frame is None or frame.is_empty:
+            stats["not_ready"] += 1
+            continue
+
+        outcome = evaluate_outcome(
+            signal_id=signal.id,
+            ticker=ticker,
+            pattern=signal.pattern,
+            direction=signal.direction,
+            final_score=signal.final_score,
+            bucket_ts=signal.bucket_ts,
+            entry_price=signal.price_at_signal,
+            frame=frame,
+            horizon=bars,
+        )
+        if outcome is None:
+            stats["not_ready"] += 1
+            continue
+
+        saved = await db_manager.save_outcome(
+            signal_id=signal.id,
+            horizon=bars,
+            entry_price=outcome.entry_price,
+            exit_price=outcome.exit_price,
+            return_pct=outcome.return_pct,
+        )
+        if saved is not None:
+            stats["evaluated"] += 1
+
+    logger.info("pipeline.outcomes_evaluated", **stats)
     return stats
 
 

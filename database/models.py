@@ -79,7 +79,22 @@ class Signal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Skor bilesenleri: hangi girdinin isabeti artirdigini backtest'te olcebilmek icin
+    interval: Mapped[str | None] = mapped_column(String(8))
+    indicator_score: Mapped[float | None] = mapped_column(Float)
+    sentiment: Mapped[float | None] = mapped_column(Float)
+    mtf_score: Mapped[float | None] = mapped_column(Float)
+
+    # Kirilim teyidi: formasyonun calismis sayilmasi icin asilmasi gereken seviye
+    breakout_level: Mapped[float | None] = mapped_column(Float)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_price: Mapped[float | None] = mapped_column(Float)
+    confirm_volume_ratio: Mapped[float | None] = mapped_column(Float)
+
     symbol: Mapped[Symbol] = relationship(back_populates="signals")
+    outcome: Mapped[SignalOutcome | None] = relationship(
+        back_populates="signal", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class NewsItem(Base):
@@ -114,6 +129,43 @@ class LLMSummary(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     news: Mapped[NewsItem] = relationship(back_populates="summary")
+
+
+class SignalOutcome(Base):
+    """Sinyalin N mum sonraki sonucu; isabet istatistiklerini besler."""
+
+    __tablename__ = "signal_outcomes"
+    __table_args__ = (UniqueConstraint("signal_id", name="uq_outcome_signal"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    signal_id: Mapped[int] = mapped_column(
+        ForeignKey("signals.id", ondelete="CASCADE"), nullable=False
+    )
+    horizon: Mapped[int] = mapped_column(Integer, nullable=False)
+    entry_price: Mapped[float] = mapped_column(Float, nullable=False)
+    exit_price: Mapped[float] = mapped_column(Float, nullable=False)
+    return_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    is_hit: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    signal: Mapped[Signal] = relationship(back_populates="outcome")
+
+
+class Alert(Base):
+    """Kullanici tanimli fiyat alarmi; formasyondan bagimsiz calisir."""
+
+    __tablename__ = "alerts"
+    __table_args__ = (Index("ix_alerts_active", "is_active", "ticker"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(32), nullable=False)
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)  # above | below
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    note: Mapped[str | None] = mapped_column(String(256))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    triggered_price: Mapped[float | None] = mapped_column(Float)
 
 
 class JobRun(Base):

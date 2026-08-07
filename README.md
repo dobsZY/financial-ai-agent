@@ -76,8 +76,9 @@ Betiksiz eşdeğeri: `python main.py`. Tek process hem API'yi hem paneli servis 
 Saf HTML/CSS/JS — build adımı, Node bağımlılığı ve CORS ayarı yok. Dört görünüm:
 **Sinyaller** (master-detail: solda liste, sağda grafik + skor + haber + formasyon açıklaması),
 **İzleme Listesi** (ekle / duraklat / sil / tek sembol tara), **Canlı Takip** (seçilen sembolün
-fiyatı, indikatörleri ve grafiği periyodik yenilenir), **Haberler** (LLM özeti + sentiment
-rozeti), **Sistem** (sağlık kartları + `job_runs` tablosu).
+fiyatı, indikatörleri ve grafiği 3–60 sn'de bir yenilenir), **Alarmlar** (fiyat alarmı kur/sil),
+**İstatistik** (isabet oranı kırılımları), **Haberler** (LLM özeti + sentiment rozeti),
+**Sistem** (sağlık kartları + `job_runs` tablosu).
 
 | Kısayol | İşlev |
 |---|---|
@@ -99,6 +100,7 @@ Eski Flet paneli `ui/` altında duruyor (`flet run ui/main_app.py`); artık biri
 | `intraday_scan_nasdaq` | Hafta içi 10:05–15:05 (America/New_York) |
 | `eod_scan_*` | Kapanış + 15 dk, günlük mumla |
 | `news_poll` | 15 dakikada bir (`NEWS_POLL_INTERVAL_MINUTES`) |
+| `outcome_scan` | Saatte bir — sinyalleri N mum sonrasına taşıyıp sonucunu kaydeder |
 
 Hafta sonu ve sabit tarihli resmî tatiller atlanır (`core/market_hours.py`).
 
@@ -114,7 +116,36 @@ Hafta sonu ve sabit tarihli resmî tatiller atlanır (`core/market_hours.py`).
 | `GET /charts/{ticker}` | Mum grafiği (PNG, RAM'de üretilir); `live=true` önbelleği atlar, kaynaktan taze çeker |
 | `GET /quote/{ticker}` | Canlı fiyat: son fiyat, değişim, yüksek/düşük, hacim, RSI/EMA/MACD anlık görüntüsü |
 | `GET /patterns`, `GET /patterns/{pattern}` | Formasyon sözlüğü: ne demek, nasıl teyit edilir, nerede geçersiz olur |
+| `GET /alerts` + `POST` / `DELETE` | Fiyat alarmları (tek atımlık; tetiklenince bildirim gider ve kapanır) |
+| `GET /stats`, `POST /stats/evaluate` | İsabet istatistiği: formasyon, skor aralığı, kırılım teyidi ve yön kırılımıyla |
 | `GET /jobs` | Son iş çalıştırmaları |
+
+## Sinyal yaşam döngüsü
+
+1. **Tespit** — kural motoru formasyonun şeklini bulur ve kırılım seviyesini (boyun çizgisi /
+   yatay direnç) hesaplar.
+2. **Skorlama** — formasyon güveni, indikatör teyidi, haber duyarlılığı ve **üst periyot trendi**
+   (varsayılan günlük) ağırlıklı toplanır. Üst periyot verisi yoksa ağırlığı toplamdan düşülür,
+   böylece eksik veri skoru cezalandırmaz.
+3. **Kırılım teyidi** — sonraki taramalarda fiyat kırılım seviyesini aşarsa sinyal *teyitli*
+   işaretlenir ve ikinci bir bildirim gider (hacim oranıyla birlikte).
+4. **Sonuç** — `outcome_scan` işi sinyali N mum sonrasına taşıyıp getirisini `signal_outcomes`
+   tablosuna yazar; panel bunu isabet oranına çevirir.
+
+## Telegram komutları
+
+Bot çift yönlüdür (`TELEGRAM_COMMANDS_ENABLED`). Yalnızca `.env`'deki `TELEGRAM_CHAT_ID` ile
+eşleşen sohbetten gelen komutlar işlenir.
+
+| Komut | İşlev |
+|---|---|
+| `/durum` | Sistem sağlığı, sinyal ve alarm sayısı |
+| `/sinyaller` | Son 5 sinyal (kırılım teyidi işaretli) |
+| `/tara` | Hemen tarama başlatır |
+| `/canli GARAN.IS` | Anlık fiyat, değişim ve RSI |
+| `/alarm GARAN.IS 130` | Fiyat alarmı kurar (yön güncel fiyattan çıkarılır) |
+| `/alarmlar` | Açık alarmlar |
+| `/istatistik` | İsabet oranı özeti |
 
 ## Backtest
 
@@ -163,7 +194,7 @@ kendiliğinden etkinleşir; sürüm ve metrikler `GET /system/model` ile görül
 ## Geliştirme
 
 ```powershell
-pytest                       # 184 test
+pytest                       # 221 test
 pytest --cov                 # kapsam (eşik %70, güncel %83)
 ruff check .
 mypy --ignore-missing-imports .

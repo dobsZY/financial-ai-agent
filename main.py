@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -9,11 +10,22 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import charts, health, news, patterns, quotes, signals, symbols
+from api.routes import (
+    alerts,
+    charts,
+    health,
+    news,
+    patterns,
+    quotes,
+    signals,
+    stats,
+    symbols,
+)
 from config.settings import get_settings
 from core.logger import get_logger, setup_logging
 from core.scheduler import shutdown_scheduler, start_scheduler
 from database.db_manager import dispose_engine, init_db
+from notifications.telegram_commands import poll_commands
 
 setup_logging()
 logger = get_logger(__name__)
@@ -25,9 +37,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("app.startup", env=settings.app_env, symbols=len(settings.all_symbols))
     await init_db()
     start_scheduler()
+
+    # Telegram komut dinleyicisi (webhook yerine uzun yoklama)
+    stop_event = asyncio.Event()
+    telegram_task = asyncio.create_task(poll_commands(stop_event))
+
     try:
         yield
     finally:
+        stop_event.set()
+        telegram_task.cancel()
         shutdown_scheduler()
         await dispose_engine()
         logger.info("app.shutdown")
@@ -47,6 +66,8 @@ app.include_router(news.router)
 app.include_router(charts.router)
 app.include_router(patterns.router)
 app.include_router(quotes.router)
+app.include_router(alerts.router)
+app.include_router(stats.router)
 
 # Web paneli ayni process'ten servis edilir: tek komut, CORS yok, ayni Docker imaji.
 WEB_DIR = Path(__file__).resolve().parent / "web"

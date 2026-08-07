@@ -111,6 +111,7 @@ def _double_pattern(
         pattern=pattern,
         confidence=_level_confidence(error, depth),
         source=SOURCE,
+        breakout_level=round(neckline, 4),
         meta={
             "level_error": round(error, 4),
             "depth": round(depth, 4),
@@ -124,6 +125,8 @@ def _head_shoulders(
     pivots: list[Pivot],
     kind: PivotKind,
     closes: np.ndarray,
+    lows: np.ndarray,
+    highs: np.ndarray,
     recency: int,
 ) -> Detection | None:
     extremes = [pivot for pivot in pivots if pivot.kind == kind]
@@ -143,6 +146,8 @@ def _head_shoulders(
             return None
         prominence = (head.price - max(left.price, right.price)) / max(head.price, 1e-9)
         pattern = Pattern.HEAD_SHOULDERS
+        # Boyun cizgisi: omuzlar arasindaki en dusuk dip
+        neckline = float(lows[left.index : right.index + 1].min())
     else:
         if not (head.price < left.price and head.price < right.price):
             return None
@@ -150,6 +155,7 @@ def _head_shoulders(
             min(left.price, right.price), 1e-9
         )
         pattern = Pattern.INV_HEAD_SHOULDERS
+        neckline = float(highs[left.index : right.index + 1].max())
 
     if prominence < MIN_DEPTH / 2.0:
         return None
@@ -158,7 +164,9 @@ def _head_shoulders(
         pattern=pattern,
         confidence=_level_confidence(shoulder_error, prominence),
         source=SOURCE,
+        breakout_level=round(neckline, 4),
         meta={
+            "neckline": round(neckline, 4),
             "shoulder_error": round(shoulder_error, 4),
             "prominence": round(prominence, 4),
             "head_price": round(head.price, 4),
@@ -184,20 +192,32 @@ def _triangle(pivots: list[Pivot], closes: np.ndarray, recency: int) -> Detectio
 
     if peak_error <= FLAT_TOLERANCE and rising_lows:
         slope = (troughs[-1].price - troughs[-2].price) / max(troughs[-2].price, 1e-9)
+        resistance = (peaks[-2].price + peaks[-1].price) / 2.0
         return Detection(
             pattern=Pattern.ASC_TRIANGLE,
             confidence=_level_confidence(peak_error, slope),
             source=SOURCE,
-            meta={"resistance_error": round(peak_error, 4), "support_slope": round(slope, 4)},
+            breakout_level=round(resistance, 4),
+            meta={
+                "resistance": round(resistance, 4),
+                "resistance_error": round(peak_error, 4),
+                "support_slope": round(slope, 4),
+            },
         )
 
     if trough_error <= FLAT_TOLERANCE and falling_highs:
         slope = (peaks[-2].price - peaks[-1].price) / max(peaks[-2].price, 1e-9)
+        support = (troughs[-2].price + troughs[-1].price) / 2.0
         return Detection(
             pattern=Pattern.DESC_TRIANGLE,
             confidence=_level_confidence(trough_error, slope),
             source=SOURCE,
-            meta={"support_error": round(trough_error, 4), "resistance_slope": round(slope, 4)},
+            breakout_level=round(support, 4),
+            meta={
+                "support": round(support, 4),
+                "support_error": round(trough_error, 4),
+                "resistance_slope": round(slope, 4),
+            },
         )
 
     return None
@@ -225,8 +245,8 @@ def detect_patterns(
     candidates = [
         _double_pattern(pivots, "peak", closes, lows, highs, recency),
         _double_pattern(pivots, "trough", closes, lows, highs, recency),
-        _head_shoulders(pivots, "peak", closes, recency),
-        _head_shoulders(pivots, "trough", closes, recency),
+        _head_shoulders(pivots, "peak", closes, lows, highs, recency),
+        _head_shoulders(pivots, "trough", closes, lows, highs, recency),
         _triangle(pivots, closes, recency),
     ]
     return deduplicate([item for item in candidates if item is not None])

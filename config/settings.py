@@ -51,6 +51,21 @@ class Settings(BaseSettings):
     weight_vision: float = 0.5
     weight_sentiment: float = 0.3
     weight_indicator: float = 0.2
+    # Ust zaman dilimi teyidi: veri yoksa agirligi toplamdan dusulur
+    weight_mtf: float = 0.2
+    mtf_enabled: bool = True
+    mtf_interval: str = "1d"
+
+    # Kirilim teyidi: sinyal kac mum boyunca teyit bekler
+    breakout_window_bars: int = 30
+    breakout_min_volume_ratio: float = 0.0
+
+    # Sonuc takibi: sinyal kac mum sonra degerlendirilir
+    outcome_horizon_bars: int = 5
+
+    # Telegram komutlari (tek yonlu bildirimin yaninda iki yonlu bot)
+    telegram_commands_enabled: bool = True
+    telegram_poll_timeout: int = 25
 
     ui_refresh_seconds: int = 30
 

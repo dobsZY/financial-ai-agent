@@ -57,6 +57,10 @@ class Detection(BaseModel):
     source: str
     direction: Direction | None = None
     box: BoundingBox | None = None
+    breakout_level: float | None = Field(
+        default=None,
+        description="Formasyonun calismis sayilmasi icin asilmasi gereken fiyat (boyun cizgisi/direnc)",
+    )
     meta: dict[str, float | str] = Field(default_factory=dict)
 
     @property
@@ -76,6 +80,7 @@ class SignalCandidate(BaseModel):
     price: float | None = None
     indicator_score: float = 0.0
     sentiment: float = 0.0
+    mtf_score: float | None = None
     final_score: float | None = None
     chart_hash: str | None = None
 
@@ -125,6 +130,14 @@ class SignalRead(BaseModel):
     bucket_ts: datetime
     created_at: datetime
     notified_at: datetime | None = None
+    interval: str | None = None
+    indicator_score: float | None = None
+    sentiment: float | None = None
+    mtf_score: float | None = None
+    breakout_level: float | None = None
+    confirmed_at: datetime | None = None
+    confirmed_price: float | None = None
+    confirm_volume_ratio: float | None = None
 
 
 class JobRunRead(BaseModel):

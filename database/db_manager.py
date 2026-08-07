@@ -17,7 +17,17 @@ from sqlalchemy.ext.asyncio import (
 
 from config.settings import get_settings
 from core.logger import get_logger
-from database.models import Base, Candle, JobRun, LLMSummary, NewsItem, Signal, Symbol
+from database.models import (
+    Alert,
+    Base,
+    Candle,
+    JobRun,
+    LLMSummary,
+    NewsItem,
+    Signal,
+    SignalOutcome,
+    Symbol,
+)
 from schemas.market import OHLCV_COLUMNS, Interval, OHLCVFrame, SymbolConfig
 from schemas.news import LLMSummary as LLMSummarySchema
 from schemas.news import NewsItem as NewsItemSchema
@@ -190,6 +200,11 @@ async def save_signal(
         bucket_ts=candidate.bucket_ts,
         chart_hash=candidate.chart_hash,
         notified_at=datetime.now(timezone.utc) if notified else None,
+        interval=candidate.interval,
+        indicator_score=candidate.indicator_score,
+        sentiment=candidate.sentiment,
+        mtf_score=candidate.mtf_score,
+        breakout_level=candidate.detection.breakout_level,
     )
     session.add(signal)
     await session.flush()
@@ -530,3 +545,154 @@ async def finish_job_run(
         job.status = status
         job.items_processed = items_processed
         job.error_text = error_text
+
+
+# --------------------------------------------------------------- kirilim teyidi
+
+
+async def pending_breakouts(
+    tickers: list[str] | None = None, limit: int = 200
+) -> list[tuple[Signal, str]]:
+    """Kirilim seviyesi tanimli, henuz teyit edilmemis sinyaller."""
+    async with session_scope() as session:
+        statement = (
+            select(Signal, Symbol.ticker)
+            .join(Symbol, Signal.symbol_id == Symbol.id)
+            .where(Signal.breakout_level.is_not(None))
+            .where(Signal.confirmed_at.is_(None))
+            .order_by(Signal.created_at.desc())
+            .limit(limit)
+        )
+        if tickers:
+            statement = statement.where(Symbol.ticker.in_([t.strip().upper() for t in tickers]))
+        result = await session.execute(statement)
+        return [(row[0], row[1]) for row in result.all()]
+
+
+async def mark_confirmed(
+    signal_id: int, price: float, volume_ratio: float | None = None
+) -> Signal | None:
+    """Sinyali 'kirilim teyit edildi' olarak isaretler."""
+    async with session_scope() as session:
+        signal = await session.get(Signal, signal_id)
+        if signal is None or signal.confirmed_at is not None:
+            return None
+        signal.confirmed_at = datetime.now(timezone.utc)
+        signal.confirmed_price = price
+        signal.confirm_volume_ratio = volume_ratio
+        await session.flush()
+        logger.info("db.signal_confirmed", signal_id=signal_id, price=price)
+        return signal
+
+
+# ------------------------------------------------------------- sonuc takibi
+
+
+async def signals_awaiting_outcome(limit: int = 200) -> list[tuple[Signal, str, str]]:
+    """Henuz degerlendirilmemis sinyaller (Signal, ticker, interval)."""
+    async with session_scope() as session:
+        statement = (
+            select(Signal, Symbol.ticker, Symbol.interval)
+            .join(Symbol, Signal.symbol_id == Symbol.id)
+            .outerjoin(SignalOutcome, SignalOutcome.signal_id == Signal.id)
+            .where(SignalOutcome.id.is_(None))
+            .order_by(Signal.bucket_ts.asc())
+            .limit(limit)
+        )
+        result = await session.execute(statement)
+        return [(row[0], row[1], row[2]) for row in result.all()]
+
+
+async def save_outcome(
+    signal_id: int,
+    horizon: int,
+    entry_price: float,
+    exit_price: float,
+    return_pct: float,
+) -> SignalOutcome | None:
+    """Sonucu yazar; ayni sinyal icin ikinci kayit olusturmaz."""
+    async with session_scope() as session:
+        existing = await session.execute(
+            select(SignalOutcome).where(SignalOutcome.signal_id == signal_id)
+        )
+        if existing.scalar_one_or_none() is not None:
+            return None
+
+        outcome = SignalOutcome(
+            signal_id=signal_id,
+            horizon=horizon,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            return_pct=return_pct,
+            is_hit=return_pct > 0,
+        )
+        session.add(outcome)
+        await session.flush()
+        return outcome
+
+
+async def outcome_rows(days: int | None = None) -> list[tuple[SignalOutcome, Signal, str]]:
+    """(Sonuc, Sinyal, ticker) — istatistik hesaplamalari icin."""
+    async with session_scope() as session:
+        statement = (
+            select(SignalOutcome, Signal, Symbol.ticker)
+            .join(Signal, SignalOutcome.signal_id == Signal.id)
+            .join(Symbol, Signal.symbol_id == Symbol.id)
+            .order_by(SignalOutcome.evaluated_at.desc())
+        )
+        if days:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            statement = statement.where(Signal.created_at >= cutoff)
+        result = await session.execute(statement)
+        return [(row[0], row[1], row[2]) for row in result.all()]
+
+
+# ----------------------------------------------------------- fiyat alarmlari
+
+
+async def list_alerts(active_only: bool = False) -> list[Alert]:
+    async with session_scope() as session:
+        statement = select(Alert).order_by(Alert.is_active.desc(), Alert.created_at.desc())
+        if active_only:
+            statement = statement.where(Alert.is_active.is_(True))
+        result = await session.execute(statement)
+        return list(result.scalars().all())
+
+
+async def create_alert(
+    ticker: str, direction: str, price: float, note: str | None = None
+) -> Alert:
+    async with session_scope() as session:
+        alert = Alert(
+            ticker=SymbolConfig.from_ticker(ticker).yf_ticker,
+            direction=direction,
+            price=price,
+            note=note,
+        )
+        session.add(alert)
+        await session.flush()
+        logger.info("db.alert_created", ticker=alert.ticker, direction=direction, price=price)
+        return alert
+
+
+async def delete_alert(alert_id: int) -> bool:
+    async with session_scope() as session:
+        alert = await session.get(Alert, alert_id)
+        if alert is None:
+            return False
+        await session.delete(alert)
+        return True
+
+
+async def trigger_alert(alert_id: int, price: float) -> Alert | None:
+    """Alarmi tetiklenmis olarak isaretler (tek atimlik)."""
+    async with session_scope() as session:
+        alert = await session.get(Alert, alert_id)
+        if alert is None or not alert.is_active:
+            return None
+        alert.is_active = False
+        alert.triggered_at = datetime.now(timezone.utc)
+        alert.triggered_price = price
+        await session.flush()
+        logger.info("db.alert_triggered", ticker=alert.ticker, price=price)
+        return alert

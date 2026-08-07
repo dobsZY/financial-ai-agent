@@ -24,6 +24,7 @@ def test_all_jobs_are_registered(scheduler: AsyncIOScheduler) -> None:
         "eod_scan_bist",
         "eod_scan_nasdaq",
         "news_poll",
+        "outcome_scan",
     }
 
 
@@ -33,6 +34,12 @@ def test_jobs_use_market_timezones(scheduler: AsyncIOScheduler) -> None:
 
     assert str(bist.trigger.timezone) == "Europe/Istanbul"
     assert str(nasdaq.trigger.timezone) == "America/New_York"
+
+
+def test_outcome_job_runs_hourly(scheduler: AsyncIOScheduler) -> None:
+    """Sonuc degerlendirmesi piyasadan bagimsiz, saatlik calisir."""
+    trigger = str(scheduler.get_job("outcome_scan").trigger)
+    assert "1:00:00" in trigger
 
 
 def test_weekend_is_excluded_from_cron(scheduler: AsyncIOScheduler) -> None:

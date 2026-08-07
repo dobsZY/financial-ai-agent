@@ -11,7 +11,7 @@ const state = {
   view: "signals",
   filters: new Set(),
   segment: "all",
-  signals: [], symbols: [], news: [], jobs: [], health: null,
+  signals: [], symbols: [], news: [], jobs: [], health: null, alerts: [], stats: null,
   patterns: {},          // pattern -> PatternInfo
   selected: null,
   auto: true, theme: "dark", busy: false,
@@ -76,11 +76,11 @@ function toast(msg, kind = "") {
 async function loadAll({ silent = false } = {}) {
   if (!silent) $("#main").innerHTML = '<div class="skeleton"></div>'.repeat(5);
   try {
-    const [signals, symbols, news, jobs, health] = await Promise.all([
+    const [signals, symbols, news, jobs, health, alerts, stats] = await Promise.all([
       api("/signals?limit=60"), api("/symbols"), api("/news?limit=40"),
-      api("/jobs?limit=20"), api("/health"),
+      api("/jobs?limit=20"), api("/health"), api("/alerts"), api("/stats"),
     ]);
-    Object.assign(state, { signals, symbols, news, jobs, health });
+    Object.assign(state, { signals, symbols, news, jobs, health, alerts, stats });
     $("#live-dot").className = "dot";
     $("#st-updated").textContent = `güncellendi ${new Date().toLocaleTimeString("tr-TR")}`;
   } catch (err) {
@@ -262,6 +262,111 @@ function renderSystem() {
 }
 
 
+
+/* --------------------------------------------------------------- alarmlar */
+
+function renderAlerts() {
+  const active = state.alerts.filter((a) => a.is_active);
+  const done = state.alerts.filter((a) => !a.is_active);
+  $("#title").textContent = "Alarmlar";
+  $("#subtitle").textContent = `${active.length} açık · ${done.length} tetiklenmiş`;
+  $("#seg").innerHTML = "";
+
+  const form = `
+    <div class="card">
+      <div class="crow">
+        <input id="al-ticker" list="live-symbols" placeholder="Sembol — GARAN.IS"
+               style="flex:1;min-width:160px;height:46px;padding:0 18px;border-radius:99px;
+                      border:1px solid var(--stroke);background:var(--glass);color:var(--fg);outline:none">
+        <datalist id="live-symbols">${state.symbols.map((s) => `<option value="${esc(s.ticker)}">`).join("")}</datalist>
+        <select id="al-dir" style="height:46px;padding:0 18px;border-radius:99px;border:1px solid var(--stroke);
+                background:var(--glass);color:var(--fg);outline:none">
+          <option value="above">üstüne çıkarsa</option>
+          <option value="below">altına inerse</option>
+        </select>
+        <input id="al-price" type="number" step="0.01" placeholder="Fiyat"
+               style="width:150px;height:46px;padding:0 18px;border-radius:99px;
+                      border:1px solid var(--stroke);background:var(--glass);color:var(--fg);outline:none">
+        <button class="primary" id="al-add">Alarm kur</button>
+      </div>
+      <p style="margin:14px 0 0;font-size:12.5px;color:var(--fg-mute)">
+        Alarm tetiklendiğinde Telegram'a bildirim gider ve alarm kapanır (tek atımlık).</p>
+    </div>`;
+
+  const card = (a) => {
+    const arrow = a.direction === "above" ? "▲" : "▼";
+    const label = a.direction === "above" ? "üstüne çıkarsa" : "altına inerse";
+    return `<div class="card">
+      <div class="crow">
+        <span class="tk" style="width:140px">${esc(a.ticker)}</span>
+        <span class="chip ${a.direction === "above" ? "long" : "short"}">${arrow} ${a.price.toFixed(2)}</span>
+        <span class="chip">${label}</span>
+        <span class="grow"></span>
+        ${a.is_active
+          ? '<span class="chip long">açık</span>'
+          : `<span class="chip">tetiklendi · ${esc(fmtTime(a.triggered_at))} · ${a.triggered_price?.toFixed(2) ?? "–"}</span>`}
+        <button class="iconbtn danger" data-del-alert="${a.id}" title="Sil">✕</button>
+      </div>
+    </div>`;
+  };
+
+  const body = state.alerts.length
+    ? state.alerts.map(card).join("")
+    : emptyState("🔔", "Alarm yok", "Yukarıdan bir fiyat alarmı kur.");
+  $("#main").innerHTML = form + body;
+}
+
+/* ------------------------------------------------------------ istatistik */
+
+function renderStats() {
+  const s = state.stats;
+  $("#title").textContent = "İstatistik";
+  $("#subtitle").textContent = s?.evaluated
+    ? `${s.evaluated} sinyal değerlendirildi · ${s.horizon} mum sonrası`
+    : "henüz değerlendirilmiş sinyal yok";
+  $("#seg").innerHTML = `<button data-action="evaluate">Şimdi değerlendir</button>`;
+
+  if (!s || !s.evaluated) {
+    $("#main").innerHTML = emptyState("◑", "Sonuç bekleniyor",
+      "Sinyaller belirlenen mum sayısı kadar ilerleyince otomatik değerlendirilir.");
+    return;
+  }
+
+  const color = s.hit_rate >= 0.55 ? "var(--long)" : s.hit_rate >= 0.45 ? "var(--warn)" : "var(--short)";
+  const head = `<div class="stats">
+    <div class="stat"><div class="k">İsabet oranı</div>
+      <div class="v" style="color:${color}">%${(s.hit_rate * 100).toFixed(1)}</div>
+      <div class="s">${s.evaluated} sinyal üzerinden</div></div>
+    <div class="stat"><div class="k">Ortalama getiri</div>
+      <div class="v" style="color:${s.avg_return_pct >= 0 ? "var(--long)" : "var(--short)"}">
+        ${s.avg_return_pct >= 0 ? "+" : ""}${s.avg_return_pct.toFixed(2)}%</div>
+      <div class="s">yön hizalı</div></div>
+    <div class="stat"><div class="k">Medyan getiri</div>
+      <div class="v">${s.median_return_pct >= 0 ? "+" : ""}${s.median_return_pct.toFixed(2)}%</div>
+      <div class="s">aykırı değerlerden bağımsız</div></div>
+    <div class="stat"><div class="k">Ufuk</div>
+      <div class="v">${s.horizon}</div><div class="s">mum sonrası ölçüldü</div></div>
+  </div>`;
+
+  const table = (title, groups) => !groups?.length ? "" : `
+    <div class="card" style="padding:10px 12px;margin-bottom:14px">
+      <table><thead><tr><th>${title}</th><th>Adet</th><th>İsabet</th><th>Ort. getiri</th></tr></thead>
+      <tbody>${groups.map((g) => {
+        const c = g.hit_rate >= 0.55 ? "long" : g.hit_rate >= 0.45 ? "warn" : "short";
+        return `<tr><td>${esc(g.label)}</td><td>${g.count}</td>
+          <td><span class="chip ${c}">%${(g.hit_rate * 100).toFixed(0)}</span></td>
+          <td style="color:${g.avg_return_pct >= 0 ? "var(--long)" : "var(--short)"}">
+            ${g.avg_return_pct >= 0 ? "+" : ""}${g.avg_return_pct.toFixed(2)}%</td></tr>`;
+      }).join("")}</tbody></table>
+    </div>`;
+
+  $("#main").innerHTML = head
+    + table("Formasyon", s.by_pattern)
+    + table("Skor aralığı", s.by_score)
+    + table("Kırılım teyidi", s.by_confirmation)
+    + table("Yön", s.by_direction);
+}
+
 /* ------------------------------------------------------------ canlı takip */
 
 function renderLive() {
@@ -366,6 +471,13 @@ async function startLive(ticker, interval, every) {
 
 /* ---------------------------------------------------------- detay bolmesi */
 
+function bdBar(label, value, color, signed = false) {
+  const pct = Math.min(100, Math.abs(value) * 100);
+  return `<div class="bdrow"><span>${label}</span>
+    <div class="trk"><i style="width:${pct}%;background:${color}"></i></div>
+    <b>${signed && value >= 0 ? "+" : ""}${value.toFixed(2)}</b></div>`;
+}
+
 async function renderDetail() {
   const el = $("#detail");
   const s = state.signals.find((x) => x.id === state.selected);
@@ -390,15 +502,31 @@ async function renderDetail() {
       <img class="chart" src="${chartUrl(s.ticker, { w: 1000, h: 460 })}"
            alt="${esc(s.ticker)} grafiği" onerror="this.replaceWith(Object.assign(document.createElement('p'),{textContent:'Grafik için yeterli veri yok.',style:'font-size:12.5px;color:var(--fg-mute)'}))"></div>
 
-    <div class="sec"><h4>Skor</h4>
-      <div class="bdrow"><span>Formasyon güveni</span>
-        <div class="trk"><i style="width:${(s.confidence ?? 0) * 100}%;background:var(--brand)"></i></div>
-        <b>${(s.confidence ?? 0).toFixed(2)}</b></div>
-      <div class="bdrow"><span>Final skor</span>
+    <div class="sec"><h4>Skor bileşenleri</h4>
+      ${bdBar("Formasyon", s.confidence, "var(--brand)")}
+      ${s.indicator_score != null ? bdBar("İndikatör", s.indicator_score, s.indicator_score >= 0 ? "var(--long)" : "var(--short)", true) : ""}
+      ${s.sentiment != null ? bdBar("Haber", s.sentiment, s.sentiment >= 0 ? "var(--long)" : "var(--short)", true) : ""}
+      ${s.mtf_score != null ? bdBar("Üst periyot", s.mtf_score, s.mtf_score >= 0 ? "var(--long)" : "var(--short)", true) : ""}
+      <div class="bdrow" style="margin-top:20px"><span><b>Final skor</b></span>
         <div class="trk"><i style="width:${(s.final_score ?? 0) * 100}%;background:${scoreColor(s.final_score)}"></i></div>
         <b>${(s.final_score ?? 0).toFixed(2)}</b></div>
-      <p style="margin:4px 0 0;font-size:11.5px;color:var(--fg-mute)">
-        Final skor; formasyon güveni, indikatör teyidi ve haber duyarlılığının ağırlıklı toplamıdır.</p>
+    </div>
+
+    <div class="sec"><h4>Kırılım teyidi</h4>
+      ${s.breakout_level == null
+        ? '<p style="margin:0;font-size:13px;color:var(--fg-mute)">Bu formasyon için kırılım seviyesi hesaplanmadı.</p>'
+        : s.confirmed_at
+          ? `<div class="crow" style="gap:12px"><span class="chip long">✓ Kırıldı</span>
+              <span class="chip">${esc(fmtTime(s.confirmed_at))}</span>
+              <span class="chip">${s.confirmed_price?.toFixed(2)}</span>
+              ${s.confirm_volume_ratio ? `<span class="chip warn">hacim ${s.confirm_volume_ratio.toFixed(2)}×</span>` : ""}</div>
+             <p style="margin:14px 0 0;font-size:13px;color:var(--fg-dim)">
+               ${s.direction === "LONG" ? "Direnç" : "Destek"} ${s.breakout_level.toFixed(2)} seviyesi aşıldı — formasyon çalıştı.</p>`
+          : `<div class="crow" style="gap:12px"><span class="chip warn">⏳ Bekliyor</span>
+              <span class="chip">seviye ${s.breakout_level.toFixed(2)}</span></div>
+             <p style="margin:14px 0 0;font-size:13px;color:var(--fg-dim)">
+               Fiyat ${s.breakout_level.toFixed(2)} seviyesinin ${s.direction === "LONG" ? "üstünde" : "altında"}
+               kapanana kadar formasyon teyit edilmiş sayılmaz.</p>`}
     </div>
 
     <div class="sec"><h4>Künye</h4>
@@ -478,6 +606,9 @@ const COMMANDS = [
   { icon: "★", label: "Özetsiz haberleri tamamla", tail: "komut", run: () => triggerSummarize() },
   { icon: "◐", label: "Temayı değiştir", tail: "komut", run: () => toggleTheme() },
   { icon: "◎", label: "Canlı takip", tail: "sayfa", run: () => go("live") },
+  { icon: "🔔", label: "Alarmlar", tail: "sayfa", run: () => go("alerts") },
+  { icon: "◑", label: "İstatistik", tail: "sayfa", run: () => go("stats") },
+  { icon: "◑", label: "Sinyal sonuçlarını değerlendir", tail: "komut", run: () => triggerEvaluate() },
 ];
 
 function paintPalette(q = "") {
@@ -549,7 +680,7 @@ const triggerScan = (tickers) => withBusy(async () => {
   const body = { background: false, send_notification: true };
   if (tickers) body.tickers = tickers;
   const r = await api("/scan", { method: "POST", body: JSON.stringify(body) });
-  toast(`Tarama bitti — ${r.saved} yeni sinyal, ${r.notified} bildirim`, "ok");
+  toast(`Tarama bitti — ${r.saved} sinyal, ${r.notified} bildirim, ${r.confirmed} kırılım` + (r.alerts_fired ? `, ${r.alerts_fired} alarm` : ""), "ok");
   await loadAll({ silent: true });
 }, "Tarama");
 
@@ -558,6 +689,12 @@ const triggerPoll = () => withBusy(async () => {
   toast(`Yoklama bitti — ${r.new} yeni haber, ${r.summarized} özet`, "ok");
   await loadAll({ silent: true });
 }, "Yoklama");
+
+const triggerEvaluate = () => withBusy(async () => {
+  const r = await api("/stats/evaluate", { method: "POST" });
+  toast(`${r.evaluated} sinyal değerlendirildi (${r.not_ready} henüz erken)`, "ok");
+  await loadAll({ silent: true });
+}, "Değerlendirme");
 
 const triggerSummarize = () => withBusy(async () => {
   const r = await api("/news/summarize?limit=20", { method: "POST" });
@@ -581,6 +718,7 @@ function render() {
   $("#c-signals").textContent = state.signals.length;
   $("#c-symbols").textContent = state.symbols.length;
   $("#c-news").textContent = state.news.length;
+  $("#c-alerts").textContent = state.alerts.filter((a) => a.is_active).length;
 
   const h = state.health || {};
   $("#markets").innerHTML = Object.entries(h.markets || {})
@@ -592,7 +730,8 @@ function render() {
   $("#st-integrations").innerHTML =
     `Telegram <b>${int.telegram ? "bağlı" : "kapalı"}</b> · Gemini <b>${int.gemini ? "bağlı" : "kapalı"}</b>`;
 
-  ({ signals: renderSignals, watchlist: renderWatchlist, live: renderLive, news: renderNews, system: renderSystem }[state.view])();
+  ({ signals: renderSignals, watchlist: renderWatchlist, live: renderLive,
+     alerts: renderAlerts, stats: renderStats, news: renderNews, system: renderSystem }[state.view])();
   renderDetail();
 }
 
@@ -637,6 +776,7 @@ document.addEventListener("click", async (e) => {
   if (action === "scan") return triggerScan();
   if (action === "poll") return triggerPoll();
   if (action === "summarize") return triggerSummarize();
+  if (action === "evaluate") return triggerEvaluate();
 
   const scanOne = t.closest("[data-scan-one]");
   if (scanOne) return triggerScan([scanOne.dataset.scanOne]);
@@ -661,6 +801,27 @@ document.addEventListener("click", async (e) => {
       toast(`${ticker} silindi`, "ok");
       await loadAll({ silent: true });
     }, "Silme");
+  }
+
+  const delAlert = t.closest("[data-del-alert]");
+  if (delAlert) {
+    return withBusy(async () => {
+      await api(`/alerts/${delAlert.dataset.delAlert}`, { method: "DELETE" });
+      toast("Alarm silindi", "ok");
+      await loadAll({ silent: true });
+    }, "Silme");
+  }
+
+  if (t.id === "al-add") {
+    const ticker = $("#al-ticker").value.trim();
+    const price = parseFloat($("#al-price").value);
+    if (!ticker || !price) return toast("Sembol ve fiyat gerekli", "err");
+    return withBusy(async () => {
+      await api("/alerts", { method: "POST", body: JSON.stringify({
+        ticker, direction: $("#al-dir").value, price }) });
+      toast(`${ticker.toUpperCase()} için alarm kuruldu`, "ok");
+      await loadAll({ silent: true });
+    }, "Alarm");
   }
 
   if (t.id === "live-start") {
@@ -724,7 +885,7 @@ document.addEventListener("keydown", (e) => {
 
 window.addEventListener("hashchange", () => {
   const v = location.hash.replace("#/", "");
-  if (["signals", "watchlist", "live", "news", "system"].includes(v) && v !== state.view) go(v);
+  if (["signals", "watchlist", "live", "alerts", "stats", "news", "system"].includes(v) && v !== state.view) go(v);
 });
 
 /* ---------------------------------------------------------------------- baslat */
@@ -735,7 +896,7 @@ window.addEventListener("hashchange", () => {
   $("#auto").classList.toggle("on", state.auto);
 
   const v = location.hash.replace("#/", "");
-  state.view = ["signals", "watchlist", "live", "news", "system"].includes(v) ? v : "signals";
+  state.view = ["signals", "watchlist", "live", "alerts", "stats", "news", "system"].includes(v) ? v : "signals";
   $$(".nav[data-view]").forEach((b) => b.classList.toggle("act", b.dataset.view === state.view));
 
   await loadPatterns();

@@ -28,18 +28,19 @@ class ScanRequest(BaseModel):
 
 
 def _to_read(signal: Signal, ticker: str) -> SignalRead:
-    return SignalRead(
-        id=signal.id,
-        ticker=ticker,
-        pattern=signal.pattern,
-        direction=signal.direction,
-        confidence=signal.confidence,
-        final_score=signal.final_score,
-        price_at_signal=signal.price_at_signal,
-        bucket_ts=signal.bucket_ts,
-        created_at=signal.created_at,
-        notified_at=signal.notified_at,
-    )
+    """ORM satirini API sozlesmesine cevirir.
+
+    Alanlar `SignalRead` uzerinden gezilir; modele yeni bir alan eklendiginde
+    burayi guncellemek gerekmez (onceki surumde eklenen skor bilesenleri bu
+    yuzden API'ye hic yansimamisti).
+    """
+    payload = {
+        name: getattr(signal, name)
+        for name in SignalRead.model_fields
+        if hasattr(signal, name)
+    }
+    payload["ticker"] = ticker
+    return SignalRead.model_validate(payload)
 
 
 @router.get("/signals", response_model=list[SignalRead])

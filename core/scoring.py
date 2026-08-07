@@ -21,6 +21,7 @@ def compute_final_score(
     detection: Detection,
     indicator_score: float = 0.0,
     sentiment: float = 0.0,
+    mtf_score: float | None = None,
 ) -> float:
     """`w1*vision + w2*sentiment + w3*indicator` -> 0..1 araligina normalize edilir.
 
@@ -37,15 +38,24 @@ def compute_final_score(
     indicator_part = (max(-1.0, min(1.0, aligned_indicator)) + 1.0) / 2.0
 
     total_weight = settings.weight_vision + settings.weight_sentiment + settings.weight_indicator
-    if total_weight <= 0:
-        return round(vision_part, 4)
-
-    score = (
+    weighted = (
         settings.weight_vision * vision_part
         + settings.weight_sentiment * sentiment_part
         + settings.weight_indicator * indicator_part
-    ) / total_weight
-    return round(max(0.0, min(1.0, score)), 4)
+    )
+
+    # Ust zaman dilimi teyidi yalnizca veri varsa hesaba katilir; yoksa agirligi
+    # toplama eklenmez, boylece veri eksikligi skoru cezalandirmaz.
+    if mtf_score is not None and settings.weight_mtf > 0:
+        aligned_mtf = mtf_score if direction is Direction.LONG else -mtf_score
+        mtf_part = (max(-1.0, min(1.0, aligned_mtf)) + 1.0) / 2.0
+        weighted += settings.weight_mtf * mtf_part
+        total_weight += settings.weight_mtf
+
+    if total_weight <= 0:
+        return round(vision_part, 4)
+
+    return round(max(0.0, min(1.0, weighted / total_weight)), 4)
 
 
 def bucket_timestamp(moment: datetime, interval: Interval) -> datetime:
